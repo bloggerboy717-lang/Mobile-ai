@@ -1,0 +1,6 @@
+{
+  "name": "Alic AI",
+  "description": "Alic AI - Native AI Voice Assistant developed by Rohit Raj, powered by Google Gemini with speech recognition, text-to-speech, and secure Keystore API key management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

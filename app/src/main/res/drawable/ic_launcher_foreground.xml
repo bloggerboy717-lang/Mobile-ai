@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer soundwave ring left -->
+    <path
+        android:pathData="M 33 42 A 16 16 0 0 0 33 66"
+        android:strokeWidth="2.5"
+        android:strokeColor="#60A5FA"
+        android:strokeLineCap="round" />
+
+    <!-- Outer soundwave ring right -->
+    <path
+        android:pathData="M 75 42 A 16 16 0 0 1 75 66"
+        android:strokeWidth="2.5"
+        android:strokeColor="#C084FC"
+        android:strokeLineCap="round" />
+
+    <!-- AI Voice Orb outer glow circle -->
+    <path
+        android:pathData="M 54 36 A 18 18 0 1 1 53.99 36 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="40"
+                android:startY="36"
+                android:endX="68"
+                android:endY="72"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#38BDF8" />
+                <item android:offset="0.5" android:color="#818CF8" />
+                <item android:offset="1.0" android:color="#C084FC" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Inner microphone head -->
+    <path
+        android:fillColor="#0B0F28"
+        android:pathData="M 54 44 C 51.8 44 50 45.8 50 48 L 50 54 C 50 56.2 51.8 58 54 58 C 56.2 58 58 56.2 58 54 L 58 48 C 58 45.8 56.2 44 54 44 Z" />
+
+    <!-- Mic cradle -->
+    <path
+        android:strokeWidth="2.0"
+        android:strokeColor="#0B0F28"
+        android:strokeLineCap="round"
+        android:pathData="M 47 52 C 47 57 51 61 54 61 C 57 61 61 57 61 52" />
+
+    <!-- Mic stem -->
+    <path
+        android:strokeWidth="2.0"
+        android:strokeColor="#0B0F28"
+        android:strokeLineCap="round"
+        android:pathData="M 54 61 L 54 65 M 51 65 L 57 65" />
+
+</vector>

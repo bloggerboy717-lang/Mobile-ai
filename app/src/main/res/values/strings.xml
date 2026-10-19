@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Alic AI</string>
+    <string name="developer_name">Rohit Raj</string>
+    <string name="welcome_message">Hello! How can I help you?</string>
+</resources>
