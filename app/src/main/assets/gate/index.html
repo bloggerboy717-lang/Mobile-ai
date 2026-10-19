@@ -599,6 +599,7 @@
       GoogleAuthProvider,
       signInWithPopup,
       signInWithRedirect,
+      signInWithCredential,
       getRedirectResult,
       onAuthStateChanged,
       signOut
@@ -853,11 +854,18 @@
       codeErrorBanner.style.display = "none";
     }
 
-    // Google Sign In
+    // Google Sign In (Directly uses phone's active Gmail accounts without typing email/password)
     btnGoogleSignIn.addEventListener("click", async () => {
       hideErrors();
       if (!navigator.onLine) {
         showError(googleErrorBanner, "Internet required to verify access");
+        return;
+      }
+
+      // If running inside Android app with native Credential Manager bridge
+      if (window.AndroidBridge && window.AndroidBridge.requestNativeGoogleSignIn) {
+        showOverlay("Selecting Google Account from device...");
+        window.AndroidBridge.requestNativeGoogleSignIn();
         return;
       }
 
@@ -1095,6 +1103,22 @@
     window.addEventListener("offline", () => {
       showError(codeErrorBanner, "Internet required to verify access");
     });
+
+    // Exposed to Android native layer for 1-Tap Google Sign-In with device account
+    window.signInWithGoogleIdToken = async function(idToken) {
+      if (!idToken) return;
+      hideErrors();
+      showOverlay("Signing in with Google Account...");
+      try {
+        const credential = GoogleAuthProvider.credential(idToken);
+        await signInWithCredential(auth, credential);
+        hideOverlay();
+      } catch (err) {
+        console.error("signInWithCredential error:", err);
+        hideOverlay();
+        showError(googleErrorBanner, "Google sign-in failed. Please try again.");
+      }
+    };
 
     // Exposed to Android native layer
     window.triggerForegroundCheck = async function() {

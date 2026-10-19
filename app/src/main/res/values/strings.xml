@@ -3,4 +3,5 @@
     <string name="developer_name">Rohit Raj</string>
     <string name="welcome_message">Hello! How can I help you?</string>
     <string name="accessibility_service_description">Alic AI Accessibility Service allows the assistant to execute user-approved navigation and screen interaction tasks.</string>
+    <string name="default_web_client_id">114516141176-7isqni3lp44bvqokqhm7tkp27s49o9e6.apps.googleusercontent.com</string>
 </resources>

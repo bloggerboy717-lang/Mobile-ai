@@ -13,8 +13,14 @@ import android.webkit.JavascriptInterface
 class AuthGateBridge(
     private val onAccessGrantedCallback: (email: String) -> Unit,
     private val onSignOutCallback: () -> Unit,
-    private val onAccessRevokedCallback: () -> Unit
+    private val onAccessRevokedCallback: () -> Unit,
+    private val onRequestNativeGoogleSignInCallback: () -> Unit
 ) {
+
+    @JavascriptInterface
+    fun requestNativeGoogleSignIn() {
+        onRequestNativeGoogleSignInCallback()
+    }
 
     @JavascriptInterface
     fun onAccessGranted(email: String?) {

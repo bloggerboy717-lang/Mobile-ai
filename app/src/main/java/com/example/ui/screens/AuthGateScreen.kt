@@ -30,6 +30,15 @@ import com.example.auth.LocalAssetServer
 import com.example.ui.theme.SpaceDark
 import java.util.concurrent.atomic.AtomicReference
 
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import kotlinx.coroutines.launch
+import com.example.R
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun AuthGateScreen(
@@ -40,8 +49,10 @@ fun AuthGateScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val server = remember { LocalAssetServer(context) }
     val activePopupDialogRef = remember { AtomicReference<Dialog?>(null) }
+    val webViewRef = remember { AtomicReference<WebView?>(null) }
 
     DisposableEffect(Unit) {
         val port = server.start()
@@ -98,11 +109,62 @@ fun AuthGateScreen(
                             .replace("Version/4.0 ", "")
                     }
 
+                    webViewRef.set(this)
+
                     addJavascriptInterface(
                         AuthGateBridge(
                             onAccessGrantedCallback = onAccessGranted,
                             onSignOutCallback = onSignOut,
-                            onAccessRevokedCallback = onAccessRevoked
+                            onAccessRevokedCallback = onAccessRevoked,
+                            onRequestNativeGoogleSignInCallback = {
+                                coroutineScope.launch {
+                                    try {
+                                        val credentialManager = CredentialManager.create(context)
+                                        val serverClientId = context.getString(R.string.default_web_client_id)
+                                        
+                                        val googleIdOption = GetSignInWithGoogleOption.Builder(serverClientId)
+                                            .build()
+
+                                        val request = GetCredentialRequest.Builder()
+                                            .addCredentialOption(googleIdOption)
+                                            .build()
+
+                                        val result = credentialManager.getCredential(
+                                            request = request,
+                                            context = context
+                                        )
+
+                                        val credential = result.credential
+                                        if (credential is androidx.credentials.CustomCredential &&
+                                            credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                                        ) {
+                                            val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                                            val idToken = googleIdTokenCredential.idToken
+                                            webViewRef.get()?.post {
+                                                webViewRef.get()?.evaluateJavascript(
+                                                    "if (window.signInWithGoogleIdToken) { window.signInWithGoogleIdToken('$idToken'); }",
+                                                    null
+                                                )
+                                            }
+                                        }
+                                    } catch (e: GetCredentialException) {
+                                        // User dismissed the picker or error occurred; reset overlay
+                                        webViewRef.get()?.post {
+                                            webViewRef.get()?.evaluateJavascript(
+                                                "if (window.hideOverlay) { window.hideOverlay(); }",
+                                                null
+                                            )
+                                        }
+                                    } catch (_: Exception) {
+                                        webViewRef.get()?.post {
+                                            webViewRef.get()?.evaluateJavascript(
+                                                "if (window.hideOverlay) { window.hideOverlay(); }",
+                                                null
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         ),
                         "AndroidBridge"
                     )
@@ -147,9 +209,16 @@ fun AuthGateScreen(
                         ): Boolean {
                             val popupWebView = WebView(view!!.context).apply {
                                 setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-                                settings.javaScriptEnabled = true
-                                settings.domStorageEnabled = true
-                                settings.userAgentString = view.settings.userAgentString
+                                val popupCookieManager = CookieManager.getInstance()
+                                popupCookieManager.setAcceptCookie(true)
+                                popupCookieManager.setAcceptThirdPartyCookies(this, true)
+
+                                settings.apply {
+                                    javaScriptEnabled = true
+                                    domStorageEnabled = true
+                                    databaseEnabled = true
+                                    userAgentString = view.settings.userAgentString
+                                }
                                 setBackgroundColor(AndroidColor.parseColor("#080C1E"))
 
                                 webViewClient = object : WebViewClient() {
