@@ -171,6 +171,9 @@ fun AuthGateScreen(
                                         }
                                     }
                                 }
+                            },
+                            onDismissPopupCallback = {
+                                activePopupDialogRef.getAndSet(null)?.dismiss()
                             }
                         ),
                         "AndroidBridge"
@@ -232,7 +235,30 @@ fun AuthGateScreen(
                                     override fun shouldOverrideUrlLoading(
                                         v: WebView?,
                                         req: WebResourceRequest?
-                                    ): Boolean = false
+                                    ): Boolean {
+                                        val u = req?.url?.toString() ?: ""
+                                        // When Google OAuth finishes redirecting back to localhost / firebase handler
+                                        if (u.contains("localhost") || u.contains("127.0.0.1") || u.contains("/__/auth/handler")) {
+                                            v?.postDelayed({
+                                                try {
+                                                    activePopupDialogRef.getAndSet(null)?.dismiss()
+                                                } catch (_: Exception) {}
+                                            }, 500)
+                                        }
+                                        return false
+                                    }
+
+                                    override fun onPageFinished(v: WebView?, url: String?) {
+                                        super.onPageFinished(v, url)
+                                        val u = url ?: ""
+                                        if (u.contains("/__/auth/handler") || (u.contains("accounts.google.com") && u.contains("close"))) {
+                                            v?.postDelayed({
+                                                try {
+                                                    activePopupDialogRef.getAndSet(null)?.dismiss()
+                                                } catch (_: Exception) {}
+                                            }, 800)
+                                        }
+                                    }
                                 }
                                 webChromeClient = object : WebChromeClient() {
                                     override fun onCloseWindow(window: WebView?) {

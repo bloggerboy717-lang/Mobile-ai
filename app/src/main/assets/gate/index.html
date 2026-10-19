@@ -1062,6 +1062,9 @@
     // Auth State Observer
     onAuthStateChanged(auth, async (user) => {
       hideOverlay();
+      if (window.AndroidBridge && window.AndroidBridge.dismissPopup) {
+        window.AndroidBridge.dismissPopup();
+      }
       if (user) {
         currentUser = user;
         switchToCodeScreen();

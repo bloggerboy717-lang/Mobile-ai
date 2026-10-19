@@ -14,8 +14,14 @@ class AuthGateBridge(
     private val onAccessGrantedCallback: (email: String) -> Unit,
     private val onSignOutCallback: () -> Unit,
     private val onAccessRevokedCallback: () -> Unit,
-    private val onRequestNativeGoogleSignInCallback: () -> Unit
+    private val onRequestNativeGoogleSignInCallback: () -> Unit,
+    private val onDismissPopupCallback: () -> Unit = {}
 ) {
+
+    @JavascriptInterface
+    fun dismissPopup() {
+        onDismissPopupCallback()
+    }
 
     @JavascriptInterface
     fun requestNativeGoogleSignIn() {
