@@ -118,8 +118,12 @@ fun AuthGateScreen(
                             onAccessRevokedCallback = onAccessRevoked,
                             onRequestNativeGoogleSignInCallback = {
                                 coroutineScope.launch {
+                                    val activity = (context as? android.app.Activity)
+                                        ?: (webViewRef.get()?.context as? android.app.Activity)
+                                    val targetContext = activity ?: context
+
                                     try {
-                                        val credentialManager = CredentialManager.create(context)
+                                        val credentialManager = CredentialManager.create(targetContext)
                                         val serverClientId = context.getString(R.string.default_web_client_id)
                                         
                                         val googleIdOption = GetSignInWithGoogleOption.Builder(serverClientId)
@@ -131,7 +135,7 @@ fun AuthGateScreen(
 
                                         val result = credentialManager.getCredential(
                                             request = request,
-                                            context = context
+                                            context = targetContext
                                         )
 
                                         val credential = result.credential
@@ -146,19 +150,22 @@ fun AuthGateScreen(
                                                     null
                                                 )
                                             }
+                                        } else {
+                                            // Fallback to web sign in if unexpected credential type
+                                            webViewRef.get()?.post {
+                                                webViewRef.get()?.evaluateJavascript(
+                                                    "if (window.startWebGoogleSignIn) { window.startWebGoogleSignIn(); } else if (window.hideOverlay) { window.hideOverlay(); }",
+                                                    null
+                                                )
+                                            }
                                         }
-                                    } catch (e: GetCredentialException) {
-                                        // User dismissed the picker or error occurred; reset overlay
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("AuthGate", "Native Credential Manager sign-in failed, falling back to Web popup", e)
+                                        // If native CredentialManager fails (e.g. SHA-1 fingerprint not yet registered in Firebase Console or user dismissed),
+                                        // seamlessly trigger the web Google popup so the user is never stuck loading!
                                         webViewRef.get()?.post {
                                             webViewRef.get()?.evaluateJavascript(
-                                                "if (window.hideOverlay) { window.hideOverlay(); }",
-                                                null
-                                            )
-                                        }
-                                    } catch (_: Exception) {
-                                        webViewRef.get()?.post {
-                                            webViewRef.get()?.evaluateJavascript(
-                                                "if (window.hideOverlay) { window.hideOverlay(); }",
+                                                "if (window.startWebGoogleSignIn) { window.startWebGoogleSignIn(); } else if (window.hideOverlay) { window.hideOverlay(); }",
                                                 null
                                             )
                                         }

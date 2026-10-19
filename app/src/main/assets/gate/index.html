@@ -843,32 +843,23 @@
     function hideOverlay() {
       loadingOverlay.classList.remove("active");
     }
+    window.hideOverlay = hideOverlay;
 
     function showError(element, msg) {
       element.textContent = msg;
       element.style.display = "flex";
     }
+    window.showGoogleError = function(msg) {
+      showError(googleErrorBanner, msg || "Unable to sign in. Please try again.");
+    };
 
     function hideErrors() {
       googleErrorBanner.style.display = "none";
       codeErrorBanner.style.display = "none";
     }
 
-    // Google Sign In (Directly uses phone's active Gmail accounts without typing email/password)
-    btnGoogleSignIn.addEventListener("click", async () => {
+    async function startWebGoogleSignIn() {
       hideErrors();
-      if (!navigator.onLine) {
-        showError(googleErrorBanner, "Internet required to verify access");
-        return;
-      }
-
-      // If running inside Android app with native Credential Manager bridge
-      if (window.AndroidBridge && window.AndroidBridge.requestNativeGoogleSignIn) {
-        showOverlay("Selecting Google Account from device...");
-        window.AndroidBridge.requestNativeGoogleSignIn();
-        return;
-      }
-
       showOverlay("Connecting with Google...");
       btnGoogleSignIn.disabled = true;
 
@@ -887,6 +878,31 @@
           showError(googleErrorBanner, "Unable to complete Google sign-in. Please try again.");
         }
       }
+    }
+    window.startWebGoogleSignIn = startWebGoogleSignIn;
+
+    // Google Sign In (Directly uses phone's active Gmail accounts without typing email/password)
+    btnGoogleSignIn.addEventListener("click", async () => {
+      hideErrors();
+      if (!navigator.onLine) {
+        showError(googleErrorBanner, "Internet required to verify access");
+        return;
+      }
+
+      // If running inside Android app with native Credential Manager bridge
+      if (window.AndroidBridge && window.AndroidBridge.requestNativeGoogleSignIn) {
+        showOverlay("Selecting Google Account from device...");
+        // Safety timeout: if native picker doesn't respond within 7s, fallback to web sign in
+        setTimeout(() => {
+          if (loadingOverlay.classList.contains("active") && loadingText.textContent.includes("Selecting")) {
+            startWebGoogleSignIn();
+          }
+        }, 7000);
+        window.AndroidBridge.requestNativeGoogleSignIn();
+        return;
+      }
+
+      await startWebGoogleSignIn();
     });
 
     // Sign Out
