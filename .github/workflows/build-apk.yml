@@ -24,12 +24,14 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Prepare Android SDK & Accept Licenses
+        run: |
+          echo "Setting up Android SDK environment..."
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          # Accept all Android SDK licenses so Gradle can download any needed SDK platforms automatically
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
 
       - name: Prepare build environment files
         run: |
@@ -53,7 +55,7 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-          # Make gradlew executable
+          # Ensure gradlew has execution rights
           chmod +x gradlew
 
       - name: Build Android Debug APK
