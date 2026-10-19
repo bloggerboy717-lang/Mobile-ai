@@ -9,6 +9,8 @@ import android.speech.tts.Voice
 import android.util.Log
 import com.example.data.VoicePersona
 import com.example.data.VoiceSettings
+import com.example.persona.Persona
+import com.example.persona.PersonaGender
 import java.util.Locale
 
 class TtsManager(
@@ -62,7 +64,6 @@ class TtsManager(
                 }
             })
 
-            // Set language
             val localeResult = tts?.setLanguage(Locale.US)
             if (localeResult == TextToSpeech.LANG_MISSING_DATA || localeResult == TextToSpeech.LANG_NOT_SUPPORTED) {
                 tts?.language = Locale.getDefault()
@@ -99,26 +100,35 @@ class TtsManager(
         return tts?.isSpeaking == true
     }
 
+    fun applyPersonaVoice(persona: Persona) {
+        val mappedPersona = when (persona.gender) {
+            PersonaGender.FEMALE -> VoicePersona.FEMALE
+            PersonaGender.MALE -> VoicePersona.MALE
+        }
+        val newSettings = currentSettings.copy(
+            persona = mappedPersona,
+            pitch = persona.defaultPitch,
+            speechRate = persona.defaultSpeechRate
+        )
+        updateSettings(newSettings)
+    }
+
     fun updateSettings(newSettings: VoiceSettings) {
         currentSettings = newSettings
         saveSettings(newSettings)
         applyVoiceSettings(newSettings)
     }
 
-    fun testVoice(sampleText: String = "Hello, I am Alic AI. My voice is calm, clear, and ready to assist you.") {
+    fun testVoice(sampleText: String = "Hello Rohit, I am Alic AI. My systems are calibrated and ready to assist you.") {
         if (!isInitialized) return
         stop()
         val tempMute = currentSettings.muteSpokenReplies
         if (tempMute) {
-            // Unmute temporarily for the explicit test button
             applyVoiceSettings(currentSettings.copy(muteSpokenReplies = false))
         }
         speak(sampleText, flush = true)
     }
 
-    /**
-     * Finds voices matching the requested Persona (Neutral, Male, Female).
-     */
     fun getAvailableVoices(): List<Voice> {
         if (!isInitialized) return emptyList()
         return try {
@@ -131,9 +141,6 @@ class TtsManager(
         }
     }
 
-    /**
-     * Checks whether the device engine provides explicit male/female options
-     */
     fun hasExplicitGenderVoices(): Boolean {
         val voices = getAvailableVoices()
         return voices.any { isFemaleVoice(it) } && voices.any { isMaleVoice(it) }
@@ -162,7 +169,6 @@ class TtsManager(
 
         val targetVoice = when (settings.persona) {
             VoicePersona.NEUTRAL -> {
-                // Neutral: voice that isn't strongly tagged male/female, or first balanced voice
                 allVoices.firstOrNull { !isFemaleVoice(it) && !isMaleVoice(it) }
                     ?: allVoices.firstOrNull()
             }

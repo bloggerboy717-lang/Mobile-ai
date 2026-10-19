@@ -5,12 +5,6 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -33,13 +27,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
@@ -52,6 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,7 +53,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -71,11 +64,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.AlicViewModel
+import com.example.agent.AgentAction
 import com.example.data.AssistantState
 import com.example.data.ChatMessage
 import com.example.data.ConnectionStatus
 import com.example.data.MessageSender
+import com.example.persona.ALL_PERSONAS
+import com.example.persona.Persona
+import com.example.ui.components.BigMicButton
 import com.example.ui.components.GlowingOrb
+import com.example.ui.components.OutlinedAnimatedButton
+import com.example.ui.theme.CardBorderDark
 import com.example.ui.theme.CardDark
 import com.example.ui.theme.CardElevatedDark
 import com.example.ui.theme.CyberSky
@@ -102,6 +101,10 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val currentPersona by viewModel.currentPersona.collectAsState()
+    val activeAction by viewModel.activeTaskAction.collectAsState()
+    val pendingConfirmation by viewModel.pendingConfirmationAction.collectAsState()
+
     var showPermissionRationale by remember { mutableStateOf(false) }
     var showTypeDialog by remember { mutableStateOf(false) }
     var typedInput by remember { mutableStateOf("") }
@@ -150,10 +153,10 @@ fun HomeScreen(
         modifier = modifier
             .fillMaxSize()
             .background(SpaceDark)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 18.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Top Header
+        // Top Branding Bar
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -162,131 +165,186 @@ fun HomeScreen(
             Column {
                 Text(
                     text = "Alic AI",
-                    fontSize = 28.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = TextPrimary,
                     letterSpacing = 0.5.sp
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(CardElevatedDark)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
+                Text(
+                    text = "AI Agent • by Rohit Raj",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = CyberSky
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Connection Status Pill
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CardDark)
+                        .border(
+                            1.dp,
+                            when (connectionStatus) {
+                                is ConnectionStatus.Connected -> SuccessGreen.copy(alpha = 0.6f)
+                                is ConnectionStatus.Testing -> CyberSky.copy(alpha = 0.6f)
+                                is ConnectionStatus.InvalidApiKey, is ConnectionStatus.RateLimit -> ErrorRed.copy(alpha = 0.6f)
+                                else -> CardBorderDark
+                            },
+                            RoundedCornerShape(20.dp)
+                        )
+                        .clickable { onNavigateToSettings() }
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    when (connectionStatus) {
+                                        is ConnectionStatus.Connected -> SuccessGreen
+                                        is ConnectionStatus.Testing -> CyberSky
+                                        is ConnectionStatus.InvalidApiKey, is ConnectionStatus.RateLimit -> ErrorRed
+                                        else -> NeonPurple
+                                    }
+                                )
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "by Rohit Raj",
+                            text = when (connectionStatus) {
+                                is ConnectionStatus.Connected -> "Online"
+                                is ConnectionStatus.Testing -> "Testing"
+                                is ConnectionStatus.InvalidApiKey -> "Key Error"
+                                is ConnectionStatus.RateLimit -> "Quota"
+                                else -> if (hasConfiguredKey) "Ready" else "Set Key"
+                            },
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = CyberSky
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
-            }
 
-            // Connection Badge / Settings Shortcut
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(CardDark)
-                    .border(
-                        1.dp,
-                        when (connectionStatus) {
-                            is ConnectionStatus.Connected -> SuccessGreen.copy(alpha = 0.5f)
-                            is ConnectionStatus.Testing -> CyberSky.copy(alpha = 0.5f)
-                            is ConnectionStatus.InvalidApiKey, is ConnectionStatus.RateLimit -> ErrorRed.copy(alpha = 0.5f)
-                            else -> NeonPurple.copy(alpha = 0.4f)
-                        },
-                        RoundedCornerShape(20.dp)
-                    )
-                    .clickable { onNavigateToSettings() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                    .testTag("home_connection_badge")
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(
-                                when (connectionStatus) {
-                                    is ConnectionStatus.Connected -> SuccessGreen
-                                    is ConnectionStatus.Testing -> CyberSky
-                                    is ConnectionStatus.InvalidApiKey, is ConnectionStatus.RateLimit -> ErrorRed
-                                    else -> NeonPurple
-                                }
-                            )
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = when (connectionStatus) {
-                            is ConnectionStatus.Connected -> "Online"
-                            is ConnectionStatus.Testing -> "Testing..."
-                            is ConnectionStatus.InvalidApiKey -> "Key Invalid"
-                            is ConnectionStatus.RateLimit -> "Rate Limit"
-                            else -> if (hasConfiguredKey) "Configured" else "Setup Key"
-                        },
-                        fontSize = 12.sp,
-                        color = TextSecondary,
-                        fontWeight = FontWeight.Medium
-                    )
+                Spacer(modifier = Modifier.width(6.dp))
+
+                IconButton(
+                    onClick = onNavigateToSettings,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Settings, contentDescription = "Settings", tint = TextSecondary, modifier = Modifier.size(20.dp))
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Center Content with Scroll for smaller screens
+        // Center Content Scroll
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Top
         ) {
-            // Status Pill
+            // Greeting & Persona Title
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.Start
+            ) {
+                Text(
+                    text = "Hello Rohit!",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = "I'm ${currentPersona.name}, your AI agent. How can I help you today?",
+                    fontSize = 13.sp,
+                    color = TextSecondary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 5 Personas Horizontal Selector Bar
+            Text(
+                text = "SELECT AI PERSONA",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = CyberSky,
+                letterSpacing = 1.sp,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                ALL_PERSONAS.forEach { persona ->
+                    val isSelected = persona.id == currentPersona.id
+                    PersonaAvatarBadge(
+                        persona = persona,
+                        isSelected = isSelected,
+                        onClick = { viewModel.switchPersona(persona) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Interactive 3D-Style Glowing AI Orb
+            GlowingOrb(
+                state = assistantState,
+                audioRms = audioRms,
+                size = 200.dp,
+                modifier = Modifier.testTag("home_glowing_orb")
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Status Indicator Pill
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(16.dp))
                     .background(
                         when (assistantState) {
-                            AssistantState.LISTENING -> CyberSky.copy(alpha = 0.18f)
-                            AssistantState.THINKING -> NeonPurple.copy(alpha = 0.20f)
-                            AssistantState.SPEAKING -> MagentaGlow.copy(alpha = 0.20f)
+                            AssistantState.LISTENING -> CyberSky.copy(alpha = 0.2f)
+                            AssistantState.THINKING -> NeonPurple.copy(alpha = 0.22f)
+                            AssistantState.SPEAKING -> MagentaGlow.copy(alpha = 0.22f)
                             AssistantState.IDLE -> CardElevatedDark
                         }
                     )
                     .border(
                         1.dp,
                         when (assistantState) {
-                            AssistantState.LISTENING -> CyberSky.copy(alpha = 0.5f)
-                            AssistantState.THINKING -> NeonPurple.copy(alpha = 0.5f)
-                            AssistantState.SPEAKING -> MagentaGlow.copy(alpha = 0.5f)
-                            AssistantState.IDLE -> CardDark
+                            AssistantState.LISTENING -> CyberSky.copy(alpha = 0.6f)
+                            AssistantState.THINKING -> NeonPurple.copy(alpha = 0.6f)
+                            AssistantState.SPEAKING -> MagentaGlow.copy(alpha = 0.6f)
+                            AssistantState.IDLE -> CardBorderDark
                         },
                         RoundedCornerShape(16.dp)
                     )
-                    .padding(horizontal = 18.dp, vertical = 8.dp)
-                    .testTag("assistant_status_pill")
+                    .padding(horizontal = 16.dp, vertical = 7.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (assistantState == AssistantState.THINKING) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            color = NeonPurple,
-                            strokeWidth = 2.dp
-                        )
+                        CircularProgressIndicator(modifier = Modifier.size(13.dp), color = NeonPurple, strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(8.dp))
                     }
                     Text(
                         text = when (assistantState) {
-                            AssistantState.IDLE -> "Hello! How can I help you?"
+                            AssistantState.IDLE -> "Ready • Tap mic to speak"
                             AssistantState.LISTENING -> "Listening to your voice..."
-                            AssistantState.THINKING -> "Alic is thinking..."
+                            AssistantState.THINKING -> "${currentPersona.name} is thinking..."
                             AssistantState.SPEAKING -> "Speaking response..."
                         },
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = when (assistantState) {
                             AssistantState.LISTENING -> CyberSky
@@ -298,35 +356,19 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Glowing Animated Orb
-            GlowingOrb(
-                state = assistantState,
-                audioRms = audioRms,
-                size = 230.dp,
-                modifier = Modifier.testTag("home_glowing_orb")
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Live recognized voice transcription card
-            AnimatedVisibility(
-                visible = recognizedText.isNotEmpty(),
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
+            // Pending Action Confirmation Card
+            if (pendingConfirmation != null) {
+                Spacer(modifier = Modifier.height(12.dp))
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
                         .clip(RoundedCornerShape(16.dp)),
                     color = CardElevatedDark,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, CyberSky.copy(alpha = 0.3f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CyberSky)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
-                            text = "HEARD SPEECH",
+                            text = "ACTION CONFIRMATION",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = CyberSky,
@@ -334,83 +376,129 @@ fun HomeScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "\"$recognizedText\"",
-                            fontSize = 15.sp,
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Medium
+                            text = "Alic AI is prepared to: ${pendingConfirmation!!.title}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
                         )
+                        Text(
+                            text = pendingConfirmation!!.description,
+                            fontSize = 12.sp,
+                            color = TextSecondary
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedAnimatedButton(
+                                text = "Confirm & Run",
+                                icon = Icons.Default.Check,
+                                onClick = { viewModel.confirmPendingAction() },
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedAnimatedButton(
+                                text = "Cancel",
+                                icon = Icons.Default.Close,
+                                onClick = { viewModel.cancelPendingAction() },
+                                containerColor = Color(0x22EF4444),
+                                modifier = Modifier.weight(0.8f)
+                            )
+                        }
                     }
                 }
             }
 
-            // Latest response preview card (if not currently listening and speech text is empty)
-            if (recognizedText.isEmpty() && latestAlicMessage != null) {
+            // Active Task Action Indicator
+            if (activeAction != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0x332563EB))
+                        .border(1.dp, CyberSky, RoundedCornerShape(12.dp))
+                        .padding(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = CyberSky, strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(text = "Running: ${activeAction!!.title}...", fontSize = 13.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+
+            // Live recognized voice transcription card
+            AnimatedVisibility(
+                visible = recognizedText.isNotEmpty(),
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                Spacer(modifier = Modifier.height(10.dp))
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(14.dp)),
+                    color = CardElevatedDark,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CyberSky.copy(alpha = 0.4f))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(text = "HEARD SPEECH", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CyberSky, letterSpacing = 1.sp)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(text = "\"$recognizedText\"", fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+
+            // Latest response card
+            if (recognizedText.isEmpty() && latestAlicMessage != null && pendingConfirmation == null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
                         .clickable { onNavigateToChat() },
                     color = CardDark,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, CardElevatedDark)
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderDark)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "LATEST RESPONSE",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = NeonPurple,
-                                letterSpacing = 1.sp
-                            )
+                            Text(text = "LATEST RESPONSE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = NeonPurple, letterSpacing = 1.sp)
                             Row {
                                 if (assistantState == AssistantState.SPEAKING) {
                                     IconButton(
                                         onClick = { viewModel.stopSpeaking() },
-                                        modifier = Modifier.size(28.dp).testTag("home_stop_speaking_button")
+                                        modifier = Modifier.size(26.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Stop,
-                                            contentDescription = "Stop Speaking",
-                                            tint = MagentaGlow,
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                        Icon(imageVector = Icons.Default.Stop, contentDescription = "Stop", tint = MagentaGlow, modifier = Modifier.size(16.dp))
                                     }
                                 } else {
                                     IconButton(
                                         onClick = { viewModel.repeatMessage(latestAlicMessage) },
-                                        modifier = Modifier.size(28.dp).testTag("home_repeat_speaking_button")
+                                        modifier = Modifier.size(26.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.VolumeUp,
-                                            contentDescription = "Listen Again",
-                                            tint = CyberSky,
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                        Icon(imageVector = Icons.Default.VolumeUp, contentDescription = "Repeat", tint = CyberSky, modifier = Modifier.size(16.dp))
                                     }
                                 }
                             }
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = latestAlicMessage.text,
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             color = TextSecondary,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
-                            lineHeight = 20.sp
+                            lineHeight = 18.sp
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Suggestion chips
+            // Action Suggestion Chips
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -418,67 +506,53 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val suggestions = listOf(
-                    "What can you do?",
-                    "Tell me an interesting science fact",
-                    "Explain quantum computing simply",
-                    "Tell me a fun tech joke",
-                    "Write a short haiku about stars"
+                    "Open YouTube & play trending video",
+                    "Turn on flashlight",
+                    "What is on my screen?",
+                    "Open Google Maps",
+                    "Open Wi-Fi settings"
                 )
                 suggestions.forEach { suggestion ->
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
                             .background(CardDark)
-                            .border(1.dp, CardElevatedDark, RoundedCornerShape(20.dp))
+                            .border(1.dp, CardBorderDark, RoundedCornerShape(20.dp))
                             .clickable { viewModel.submitTypedPrompt(suggestion) }
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
-                            .testTag("suggestion_chip_${suggestion.take(8).lowercase().replace(' ', '_')}")
+                            .padding(horizontal = 14.dp, vertical = 7.dp)
                     ) {
-                        Text(
-                            text = suggestion,
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
+                        Text(text = suggestion, fontSize = 12.sp, color = TextSecondary)
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Large Animated Microphone & Action Controls
+        // Bottom Controls: Keyboard, Big Mic Button, Chat Shortcut
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp),
+                .padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Type Question Button
             IconButton(
                 onClick = { showTypeDialog = true },
                 modifier = Modifier
-                    .size(52.dp)
+                    .size(50.dp)
                     .clip(CircleShape)
                     .background(CardDark)
-                    .border(1.dp, CardElevatedDark, CircleShape)
-                    .testTag("home_type_input_toggle_button")
+                    .border(1.dp, CardBorderDark, CircleShape)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Keyboard,
-                    contentDescription = "Type Question",
-                    tint = CyberSky,
-                    modifier = Modifier.size(24.dp)
-                )
+                Icon(imageVector = Icons.Default.Keyboard, contentDescription = "Type", tint = CyberSky, modifier = Modifier.size(22.dp))
             }
 
-            // Big Central Animated Mic Button
             BigMicButton(
                 assistantState = assistantState,
                 onClick = { handleMicClick() }
             )
 
-            // Stop Speaking / Clear or Chat shortcut
             IconButton(
                 onClick = {
                     if (assistantState == AssistantState.SPEAKING) {
@@ -488,17 +562,16 @@ fun HomeScreen(
                     }
                 },
                 modifier = Modifier
-                    .size(52.dp)
+                    .size(50.dp)
                     .clip(CircleShape)
                     .background(CardDark)
-                    .border(1.dp, CardElevatedDark, CircleShape)
-                    .testTag("home_chat_or_stop_button")
+                    .border(1.dp, CardBorderDark, CircleShape)
             ) {
                 Icon(
                     imageVector = if (assistantState == AssistantState.SPEAKING) Icons.Default.Stop else Icons.Default.VolumeUp,
-                    contentDescription = if (assistantState == AssistantState.SPEAKING) "Stop Speaking" else "Open Chat",
+                    contentDescription = "Audio Control",
                     tint = if (assistantState == AssistantState.SPEAKING) MagentaGlow else NeonPurple,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }
@@ -508,30 +581,16 @@ fun HomeScreen(
     if (showTypeDialog) {
         AlertDialog(
             onDismissRequest = { showTypeDialog = false },
-            title = {
-                Text(
-                    text = "Ask Alic AI",
-                    color = TextPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-            },
+            title = { Text(text = "Ask ${currentPersona.name}", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             text = {
                 Column {
-                    Text(
-                        text = "Type your question below. Alic AI will respond in chat and speak the response.",
-                        fontSize = 13.sp,
-                        color = TextSecondary
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(text = "Type your query or phone command:", fontSize = 13.sp, color = TextSecondary)
+                    Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
                         value = typedInput,
                         onValueChange = { typedInput = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("typed_prompt_input_field"),
-                        placeholder = { Text("What would you like to know?", color = TextMuted) },
-                        maxLines = 4,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("e.g. Turn on flashlight, Open Maps...", color = TextMuted) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = CyberSky,
                             unfocusedBorderColor = CardElevatedDark,
@@ -551,16 +610,13 @@ fun HomeScreen(
                             typedInput = ""
                             showTypeDialog = false
                         }
-                    },
-                    modifier = Modifier.testTag("submit_typed_prompt_button")
+                    }
                 ) {
-                    Text("Ask", color = CyberSky, fontWeight = FontWeight.Bold)
+                    Text("Send", color = CyberSky, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = { showTypeDialog = false }
-                ) {
+                TextButton(onClick = { showTypeDialog = false }) {
                     Text("Cancel", color = TextSecondary)
                 }
             },
@@ -569,14 +625,14 @@ fun HomeScreen(
         )
     }
 
-    // Microphone Permission Rationale Dialog
+    // Microphone Permission Dialog
     if (showPermissionRationale) {
         AlertDialog(
             onDismissRequest = { showPermissionRationale = false },
             title = { Text("Microphone Access Required", color = TextPrimary) },
             text = {
                 Text(
-                    "Alic AI needs microphone permission to hear your questions and convert your voice to text. You can also type questions using the keyboard button anytime.",
+                    "Alic AI needs microphone permission to recognize your voice. You can also type commands with the keyboard anytime.",
                     color = TextSecondary
                 )
             },
@@ -592,7 +648,7 @@ fun HomeScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showPermissionRationale = false }) {
-                    Text("Type Instead", color = TextSecondary)
+                    Text("Cancel", color = TextSecondary)
                 }
             },
             containerColor = CardDark,
@@ -602,68 +658,51 @@ fun HomeScreen(
 }
 
 @Composable
-fun BigMicButton(
-    assistantState: AssistantState,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+fun PersonaAvatarBadge(
+    persona: Persona,
+    isSelected: Boolean,
+    onClick: () -> Unit
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "MicWaveTransition")
-
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 1.25f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "MicPulseScale"
-    )
-
-    val isListening = assistantState == AssistantState.LISTENING
-
-    Box(
-        modifier = modifier.size(92.dp),
-        contentAlignment = Alignment.Center
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(4.dp)
     ) {
-        // Pulsing Wave Ring when listening
-        if (isListening) {
-            Box(
-                modifier = Modifier
-                    .size(92.dp)
-                    .scale(pulseScale)
-                    .clip(CircleShape)
-                    .background(CyberSky.copy(alpha = 0.22f))
-            )
-        }
-
-        // Central Microphone Button
         Box(
             modifier = Modifier
-                .size(76.dp)
+                .size(54.dp)
                 .clip(CircleShape)
                 .background(
-                    when (assistantState) {
-                        AssistantState.LISTENING -> Brush.linearGradient(listOf(CyberSky, NeonPurple))
-                        AssistantState.SPEAKING -> Brush.linearGradient(listOf(MagentaGlow, NeonPurple))
-                        AssistantState.THINKING -> Brush.linearGradient(listOf(NeonPurple, CyberSky))
-                        AssistantState.IDLE -> Brush.linearGradient(listOf(CyberSky, NeonPurple))
-                    }
+                    if (isSelected) Brush.radialGradient(listOf(persona.primaryColor, persona.secondaryColor))
+                    else Brush.radialGradient(listOf(CardElevatedDark, CardDark))
                 )
-                .border(2.dp, Color.White.copy(alpha = 0.35f), CircleShape)
-                .clickable { onClick() }
-                .testTag("big_mic_button"),
+                .border(
+                    width = if (isSelected) 2.5.dp else 1.dp,
+                    color = if (isSelected) persona.primaryColor else CardBorderDark,
+                    shape = CircleShape
+                ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = when (assistantState) {
-                    AssistantState.SPEAKING -> Icons.Default.Stop
-                    AssistantState.THINKING -> Icons.Default.Refresh
-                    else -> Icons.Default.Mic
-                },
-                contentDescription = "Voice Input",
-                tint = Color.White,
-                modifier = Modifier.size(36.dp)
+            Text(
+                text = persona.avatarLetter,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isSelected) SpaceDark else TextSecondary
             )
         }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = persona.name,
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) persona.primaryColor else TextSecondary
+        )
+        Text(
+            text = persona.gender.name.lowercase().replaceFirstChar { it.uppercase() },
+            fontSize = 9.sp,
+            color = TextMuted
+        )
     }
 }

@@ -1,8 +1,17 @@
 package com.example
 
 import android.app.Application
+import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.agent.ActionStatus
+import com.example.agent.ActionType
+import com.example.agent.AgentAction
+import com.example.agent.AgentActionEngine
+import com.example.agent.TaskPlan
 import com.example.data.ApiKeyStorage
 import com.example.data.AssistantState
 import com.example.data.ChatMessage
@@ -10,6 +19,10 @@ import com.example.data.ConnectionStatus
 import com.example.data.GeminiApiService
 import com.example.data.MessageSender
 import com.example.data.VoiceSettings
+import com.example.persona.ALL_PERSONAS
+import com.example.persona.Persona
+import com.example.persona.PersonaId
+import com.example.vision.ScreenCaptureService
 import com.example.voice.SpeechManager
 import com.example.voice.TtsManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +34,11 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val apiKeyStorage = ApiKeyStorage(application)
     private val geminiApiService = GeminiApiService()
+    private val actionEngine = AgentActionEngine(application)
+
+    // Current Persona
+    private val _currentPersona = MutableStateFlow(ALL_PERSONAS.first())
+    val currentPersona: StateFlow<Persona> = _currentPersona.asStateFlow()
 
     // Assistant States
     private val _assistantState = MutableStateFlow(AssistantState.IDLE)
@@ -47,18 +65,42 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    // Navigation: 0=Home, 1=Chat, 2=Vision, 3=Apps, 4=Settings
     private val _currentTab = MutableStateFlow(0)
     val currentTab: StateFlow<Int> = _currentTab.asStateFlow()
 
     private val _showSetupDialog = MutableStateFlow(!apiKeyStorage.hasApiKey())
     val showSetupDialog: StateFlow<Boolean> = _showSetupDialog.asStateFlow()
 
+    // Agentic Actions & Task Engine
+    private val _activeTaskAction = MutableStateFlow<AgentAction?>(null)
+    val activeTaskAction: StateFlow<AgentAction?> = _activeTaskAction.asStateFlow()
+
+    private val _pendingConfirmationAction = MutableStateFlow<AgentAction?>(null)
+    val pendingConfirmationAction: StateFlow<AgentAction?> = _pendingConfirmationAction.asStateFlow()
+
+    private val _actionAuditLog = MutableStateFlow<List<AgentAction>>(emptyList())
+    val actionAuditLog: StateFlow<List<AgentAction>> = _actionAuditLog.asStateFlow()
+
+    // Vision Mode
+    private val _isVisionActive = MutableStateFlow(false)
+    val isVisionActive: StateFlow<Boolean> = _isVisionActive.asStateFlow()
+
+    private val _visionFrame = MutableStateFlow<Bitmap?>(null)
+    val visionFrame: StateFlow<Bitmap?> = _visionFrame.asStateFlow()
+
+    private val _isAnalyzingVision = MutableStateFlow(false)
+    val isAnalyzingVision: StateFlow<Boolean> = _isAnalyzingVision.asStateFlow()
+
+    private val _visionResult = MutableStateFlow<String?>(null)
+    val visionResult: StateFlow<String?> = _visionResult.asStateFlow()
+
     // Chat History
     private val _chatMessages = MutableStateFlow<List<ChatMessage>>(
         listOf(
             ChatMessage(
                 sender = MessageSender.ALIC,
-                text = "Hello! How can I help you? I am Alic AI, your voice assistant developed by Rohit Raj."
+                text = "Hello Rohit! I'm your AI agent. How can I help you today?"
             )
         )
     )
@@ -87,6 +129,11 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
         }
         _voiceSettings.value = ttsManager.currentSettings
         _hasExplicitGenderVoices.value = ttsManager.hasExplicitGenderVoices()
+
+        // Sync ScreenCapture frame listener
+        ScreenCaptureService.onFrameCapturedListener = { bitmap ->
+            _visionFrame.value = bitmap
+        }
 
         speechManager = SpeechManager(
             context = application,
@@ -122,7 +169,6 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
             }
         )
 
-        // If key is configured, perform quick background test if desired
         if (apiKeyStorage.hasApiKey()) {
             testCurrentConnection()
         }
@@ -130,6 +176,16 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun switchTab(index: Int) {
         _currentTab.value = index
+    }
+
+    fun switchPersona(persona: Persona) {
+        _currentPersona.value = persona
+        ttsManager.applyPersonaVoice(persona)
+        _chatMessages.value = _chatMessages.value + ChatMessage(
+            sender = MessageSender.ALIC,
+            text = persona.defaultGreeting
+        )
+        ttsManager.speak(persona.defaultGreeting)
     }
 
     fun dismissSetupDialog() {
@@ -151,7 +207,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                 stopSpeaking()
             }
             AssistantState.THINKING -> {
-                // Currently processing
+                // In progress
             }
             AssistantState.IDLE -> {
                 if (!apiKeyStorage.hasApiKey()) {
@@ -194,10 +250,31 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        // Add user message to conversation
         val userMsg = ChatMessage(sender = MessageSender.USER, text = prompt)
         _chatMessages.value = _chatMessages.value + userMsg
 
+        // Check if user request is an actionable phone intent
+        val parsedAction = actionEngine.parseUserIntent(prompt)
+        if (parsedAction != null) {
+            if (parsedAction.type == ActionType.ANALYZE_SCREEN) {
+                switchTab(2) // Switch to Vision
+                analyzeCurrentScreen(prompt)
+                return
+            }
+
+            if (parsedAction.requiresConfirmation) {
+                _pendingConfirmationAction.value = parsedAction
+                val askConfirmationText = "I prepared to ${parsedAction.title}. Do you want me to proceed?"
+                _chatMessages.value = _chatMessages.value + ChatMessage(sender = MessageSender.ALIC, text = askConfirmationText)
+                ttsManager.speak(askConfirmationText)
+                return
+            } else {
+                executeAgentAction(parsedAction)
+                return
+            }
+        }
+
+        // Standard Gemini conversational reasoning with persona instructions
         _assistantState.value = AssistantState.THINKING
 
         viewModelScope.launch {
@@ -205,6 +282,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                 apiKey = apiKey,
                 modelId = _selectedModel.value,
                 userPrompt = prompt,
+                systemInstructions = _currentPersona.value.systemPromptInstructions,
                 recentHistory = _chatMessages.value
             )
 
@@ -223,6 +301,114 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                     isError = true
                 )
                 _chatMessages.value = _chatMessages.value + errorChatMsg
+            }
+        }
+    }
+
+    fun executeAgentAction(action: AgentAction) {
+        _activeTaskAction.value = action
+        val statusText = "Executing: ${action.title}..."
+        _chatMessages.value = _chatMessages.value + ChatMessage(sender = MessageSender.ALIC, text = statusText)
+        ttsManager.speak(statusText)
+
+        viewModelScope.launch {
+            val success = actionEngine.executeAction(action)
+            _actionAuditLog.value = _actionAuditLog.value + action
+            _activeTaskAction.value = null
+
+            val resultSpeech = if (success) {
+                "Done! ${action.resultMessage ?: "Action completed."}"
+            } else {
+                "Could not complete ${action.title}. ${action.resultMessage ?: ""}"
+            }
+
+            _chatMessages.value = _chatMessages.value + ChatMessage(
+                sender = MessageSender.ALIC,
+                text = resultSpeech,
+                isError = !success
+            )
+            ttsManager.speak(resultSpeech)
+        }
+    }
+
+    fun confirmPendingAction() {
+        val action = _pendingConfirmationAction.value ?: return
+        _pendingConfirmationAction.value = null
+        executeAgentAction(action)
+    }
+
+    fun cancelPendingAction() {
+        val action = _pendingConfirmationAction.value ?: return
+        action.status = ActionStatus.CANCELLED
+        _pendingConfirmationAction.value = null
+        val cancelMsg = "Cancelled action: ${action.title}."
+        _chatMessages.value = _chatMessages.value + ChatMessage(sender = MessageSender.ALIC, text = cancelMsg)
+        ttsManager.speak(cancelMsg)
+    }
+
+    // Vision Screen Understanding
+    fun startScreenVision(resultCode: Int, data: Intent) {
+        val serviceIntent = Intent(getApplication(), ScreenCaptureService::class.java).apply {
+            putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, resultCode)
+            putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            getApplication<Application>().startForegroundService(serviceIntent)
+        } else {
+            getApplication<Application>().startService(serviceIntent)
+        }
+        _isVisionActive.value = true
+    }
+
+    fun stopScreenVision() {
+        val serviceIntent = Intent(getApplication(), ScreenCaptureService::class.java)
+        getApplication<Application>().stopService(serviceIntent)
+        _isVisionActive.value = false
+        _visionFrame.value = null
+    }
+
+    fun analyzeCurrentScreen(query: String = "") {
+        val frame = _visionFrame.value ?: ScreenCaptureService.latestCapturedFrame
+        if (frame == null) {
+            _errorMessage.value = "Screen Vision is not active. Please tap 'Start Vision' first."
+            return
+        }
+
+        val apiKey = apiKeyStorage.getApiKey()
+        if (apiKey.isNullOrBlank()) {
+            _errorMessage.value = "Gemini API key is not configured."
+            _showSetupDialog.value = true
+            return
+        }
+
+        _isAnalyzingVision.value = true
+        _assistantState.value = AssistantState.THINKING
+        ttsManager.speak("Analyzing your screen...")
+
+        viewModelScope.launch {
+            val result = geminiApiService.analyzeScreenVision(
+                apiKey = apiKey,
+                modelId = _selectedModel.value,
+                bitmap = frame,
+                userQuery = query,
+                systemInstructions = _currentPersona.value.systemPromptInstructions
+            )
+
+            _isAnalyzingVision.value = false
+
+            result.onSuccess { explanation ->
+                _visionResult.value = explanation
+                _chatMessages.value = _chatMessages.value + ChatMessage(
+                    sender = MessageSender.ALIC,
+                    text = "Screen Analysis: $explanation"
+                )
+                _assistantState.value = AssistantState.SPEAKING
+                ttsManager.speak(explanation)
+            }.onFailure { err ->
+                _assistantState.value = AssistantState.IDLE
+                val errText = err.message ?: "Failed to analyze screen."
+                _errorMessage.value = errText
+                _visionResult.value = "Error: $errText"
             }
         }
     }
@@ -246,7 +432,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
         _chatMessages.value = listOf(
             ChatMessage(
                 sender = MessageSender.ALIC,
-                text = "Conversation cleared. Hello! How can I help you today?"
+                text = _currentPersona.value.defaultGreeting
             )
         )
         _recognizedLiveText.value = ""
@@ -308,7 +494,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun testVoice() {
-        ttsManager.testVoice()
+        ttsManager.testVoice(_currentPersona.value.defaultGreeting)
     }
 
     fun dismissError() {
@@ -319,5 +505,6 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
         speechManager.destroy()
         ttsManager.shutdown()
+        stopScreenVision()
     }
 }

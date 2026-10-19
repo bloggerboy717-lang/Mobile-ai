@@ -7,26 +7,24 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.Crossfade
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.MicNone
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -34,29 +32,28 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.ApiKeySetupDialog
+import com.example.ui.screens.AppControlScreen
 import com.example.ui.screens.ChatScreen
 import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.PermissionsScreen
 import com.example.ui.screens.SettingsScreen
+import com.example.ui.screens.VisionScreen
 import com.example.ui.theme.CardBorderDark
 import com.example.ui.theme.CardDark
 import com.example.ui.theme.CyberSky
-import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.SpaceDark
@@ -87,13 +84,13 @@ fun AlicApp(viewModel: AlicViewModel) {
     val maskedApiKey by viewModel.maskedApiKey.collectAsState()
     val selectedModel by viewModel.selectedModel.collectAsState()
     val voiceSettings by viewModel.voiceSettings.collectAsState()
-    val hasExplicitGenderVoices by viewModel.hasExplicitGenderVoices.collectAsState()
     val chatMessages by viewModel.chatMessages.collectAsState()
     val recognizedText by viewModel.recognizedLiveText.collectAsState()
     val audioRms by viewModel.activeAudioRms.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val showSetupDialog by viewModel.showSetupDialog.collectAsState()
 
+    var showPermissionsCenter by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(errorMessage) {
@@ -103,9 +100,13 @@ fun AlicApp(viewModel: AlicViewModel) {
         }
     }
 
-    // Handle Android hardware/predictive back gesture when in secondary tabs
-    BackHandler(enabled = currentTab != 0) {
-        viewModel.switchTab(0)
+    // Android back button handling
+    BackHandler(enabled = showPermissionsCenter || currentTab != 0) {
+        if (showPermissionsCenter) {
+            showPermissionsCenter = false
+        } else {
+            viewModel.switchTab(0)
+        }
     }
 
     Scaffold(
@@ -126,16 +127,17 @@ fun AlicApp(viewModel: AlicViewModel) {
             }
         },
         bottomBar = {
-            AlicBottomNavigation(
-                currentTab = currentTab,
-                onTabSelected = { tab ->
-                    // Stop TTS or reset listening if changing tabs
-                    if (tab != currentTab) {
-                        viewModel.stopSpeaking()
+            if (!showPermissionsCenter) {
+                AlicBottomNavigation(
+                    currentTab = currentTab,
+                    onTabSelected = { tab ->
+                        if (tab != currentTab) {
+                            viewModel.stopSpeaking()
+                        }
+                        viewModel.switchTab(tab)
                     }
-                    viewModel.switchTab(tab)
-                }
-            )
+                )
+            }
         }
     ) { innerPadding ->
         Box(
@@ -143,37 +145,46 @@ fun AlicApp(viewModel: AlicViewModel) {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            Crossfade(targetState = currentTab, label = "ScreenCrossfade") { tab ->
-                when (tab) {
-                    0 -> HomeScreen(
-                        viewModel = viewModel,
-                        assistantState = assistantState,
-                        recognizedText = recognizedText,
-                        audioRms = audioRms,
-                        connectionStatus = connectionStatus,
-                        hasConfiguredKey = hasConfiguredKey,
-                        chatMessages = chatMessages,
-                        onNavigateToChat = { viewModel.switchTab(1) },
-                        onNavigateToSettings = { viewModel.switchTab(2) }
-                    )
-                    1 -> ChatScreen(
-                        viewModel = viewModel,
-                        chatMessages = chatMessages,
-                        assistantState = assistantState
-                    )
-                    2 -> SettingsScreen(
-                        viewModel = viewModel,
-                        hasConfiguredKey = hasConfiguredKey,
-                        maskedApiKey = maskedApiKey,
-                        connectionStatus = connectionStatus,
-                        selectedModel = selectedModel,
-                        voiceSettings = voiceSettings,
-                        hasExplicitGenderVoices = hasExplicitGenderVoices
-                    )
+            if (showPermissionsCenter) {
+                PermissionsScreen(onNavigateBack = { showPermissionsCenter = false })
+            } else {
+                Crossfade(targetState = currentTab, label = "ScreenCrossfade") { tab ->
+                    when (tab) {
+                        0 -> HomeScreen(
+                            viewModel = viewModel,
+                            assistantState = assistantState,
+                            recognizedText = recognizedText,
+                            audioRms = audioRms,
+                            connectionStatus = connectionStatus,
+                            hasConfiguredKey = hasConfiguredKey,
+                            chatMessages = chatMessages,
+                            onNavigateToChat = { viewModel.switchTab(1) },
+                            onNavigateToSettings = { viewModel.switchTab(4) }
+                        )
+                        1 -> ChatScreen(
+                            viewModel = viewModel,
+                            chatMessages = chatMessages,
+                            assistantState = assistantState
+                        )
+                        2 -> VisionScreen(
+                            viewModel = viewModel
+                        )
+                        3 -> AppControlScreen(
+                            viewModel = viewModel
+                        )
+                        4 -> SettingsScreen(
+                            viewModel = viewModel,
+                            hasConfiguredKey = hasConfiguredKey,
+                            maskedApiKey = maskedApiKey,
+                            connectionStatus = connectionStatus,
+                            selectedModel = selectedModel,
+                            voiceSettings = voiceSettings,
+                            onNavigateToPermissions = { showPermissionsCenter = true }
+                        )
+                    }
                 }
             }
 
-            // First-time or requested API Key Setup Dialog
             if (showSetupDialog) {
                 ApiKeySetupDialog(
                     connectionStatus = connectionStatus,
@@ -200,70 +211,112 @@ fun AlicBottomNavigation(
 ) {
     NavigationBar(
         containerColor = CardDark,
-        tonalElevation = 6.dp,
+        tonalElevation = 8.dp,
         modifier = Modifier.testTag("alic_bottom_navigation")
     ) {
+        // Tab 0: Home
         NavigationBarItem(
             selected = currentTab == 0,
             onClick = { onTabSelected(0) },
             icon = {
                 Icon(
-                    imageVector = if (currentTab == 0) Icons.Filled.Mic else Icons.Outlined.MicNone,
-                    contentDescription = "Voice Assistant Home",
-                    modifier = Modifier.size(24.dp)
+                    imageVector = if (currentTab == 0) Icons.Filled.Home else Icons.Outlined.Home,
+                    contentDescription = "Home",
+                    modifier = Modifier.size(22.dp)
                 )
             },
-            label = { Text("Assistant", fontSize = 11.sp) },
+            label = { Text("Home", fontSize = 10.sp) },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = SpaceDark,
                 selectedTextColor = CyberSky,
                 indicatorColor = CyberSky,
                 unselectedIconColor = TextSecondary,
                 unselectedTextColor = TextSecondary
-            ),
-            modifier = Modifier.testTag("nav_tab_home")
+            )
         )
 
+        // Tab 1: Chat
         NavigationBarItem(
             selected = currentTab == 1,
             onClick = { onTabSelected(1) },
             icon = {
                 Icon(
                     imageVector = if (currentTab == 1) Icons.Filled.ChatBubble else Icons.Outlined.ChatBubbleOutline,
-                    contentDescription = "Chat Conversation",
-                    modifier = Modifier.size(22.dp)
+                    contentDescription = "Chat",
+                    modifier = Modifier.size(20.dp)
                 )
             },
-            label = { Text("Chat", fontSize = 11.sp) },
+            label = { Text("Chat", fontSize = 10.sp) },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = SpaceDark,
                 selectedTextColor = NeonPurple,
                 indicatorColor = NeonPurple,
                 unselectedIconColor = TextSecondary,
                 unselectedTextColor = TextSecondary
-            ),
-            modifier = Modifier.testTag("nav_tab_chat")
+            )
         )
 
+        // Tab 2: Vision
         NavigationBarItem(
             selected = currentTab == 2,
             onClick = { onTabSelected(2) },
             icon = {
                 Icon(
-                    imageVector = if (currentTab == 2) Icons.Filled.Settings else Icons.Outlined.Settings,
-                    contentDescription = "Settings",
-                    modifier = Modifier.size(22.dp)
+                    imageVector = if (currentTab == 2) Icons.Filled.Visibility else Icons.Outlined.Visibility,
+                    contentDescription = "Vision",
+                    modifier = Modifier.size(20.dp)
                 )
             },
-            label = { Text("Settings", fontSize = 11.sp) },
+            label = { Text("Vision", fontSize = 10.sp) },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = SpaceDark,
                 selectedTextColor = CyberSky,
                 indicatorColor = CyberSky,
                 unselectedIconColor = TextSecondary,
                 unselectedTextColor = TextSecondary
-            ),
-            modifier = Modifier.testTag("nav_tab_settings")
+            )
+        )
+
+        // Tab 3: Apps / Control
+        NavigationBarItem(
+            selected = currentTab == 3,
+            onClick = { onTabSelected(3) },
+            icon = {
+                Icon(
+                    imageVector = if (currentTab == 3) Icons.Filled.GridView else Icons.Outlined.GridView,
+                    contentDescription = "Apps",
+                    modifier = Modifier.size(20.dp)
+                )
+            },
+            label = { Text("Apps", fontSize = 10.sp) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = SpaceDark,
+                selectedTextColor = CyberSky,
+                indicatorColor = CyberSky,
+                unselectedIconColor = TextSecondary,
+                unselectedTextColor = TextSecondary
+            )
+        )
+
+        // Tab 4: Settings
+        NavigationBarItem(
+            selected = currentTab == 4,
+            onClick = { onTabSelected(4) },
+            icon = {
+                Icon(
+                    imageVector = if (currentTab == 4) Icons.Filled.Settings else Icons.Outlined.Settings,
+                    contentDescription = "Settings",
+                    modifier = Modifier.size(20.dp)
+                )
+            },
+            label = { Text("Settings", fontSize = 10.sp) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = SpaceDark,
+                selectedTextColor = NeonPurple,
+                indicatorColor = NeonPurple,
+                unselectedIconColor = TextSecondary,
+                unselectedTextColor = TextSecondary
+            )
         )
     }
 }

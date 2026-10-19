@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,9 +24,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VolumeUp
@@ -42,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +62,9 @@ import com.example.AlicViewModel
 import com.example.data.AssistantState
 import com.example.data.ChatMessage
 import com.example.data.MessageSender
+import com.example.persona.ALL_PERSONAS
+import com.example.persona.Persona
+import com.example.ui.components.OutlinedAnimatedButton
 import com.example.ui.theme.CardBorderDark
 import com.example.ui.theme.CardDark
 import com.example.ui.theme.CardElevatedDark
@@ -68,6 +73,7 @@ import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.MagentaGlow
 import com.example.ui.theme.NeonPurple
 import com.example.ui.theme.SpaceDark
+import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -84,10 +90,13 @@ fun ChatScreen(
 ) {
     val context = LocalContext.current
     val listState = rememberLazyListState()
+    val currentPersona by viewModel.currentPersona.collectAsState()
+    val pendingConfirmation by viewModel.pendingConfirmationAction.collectAsState()
+
     var inputText by remember { mutableStateOf("") }
     var showClearDialog by remember { mutableStateOf(false) }
+    var showPersonaDialog by remember { mutableStateOf(false) }
 
-    // Auto scroll to bottom when new messages arrive
     LaunchedEffect(chatMessages.size, assistantState) {
         if (chatMessages.isNotEmpty()) {
             listState.animateScrollToItem(chatMessages.size - 1)
@@ -108,47 +117,68 @@ fun ChatScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = "Alic AI Conversation",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = if (assistantState == AssistantState.SPEAKING) "Speaking response..." else "Powered by Google Gemini",
-                        fontSize = 12.sp,
-                        color = if (assistantState == AssistantState.SPEAKING) MagentaGlow else TextSecondary
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Brush.radialGradient(listOf(currentPersona.primaryColor, currentPersona.secondaryColor))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = currentPersona.avatarLetter,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SpaceDark
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = currentPersona.name,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "${currentPersona.gender.name.lowercase().replaceFirstChar { it.uppercase() }} • ${currentPersona.subtitle}",
+                            fontSize = 10.sp,
+                            color = CyberSky
+                        )
+                    }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CardElevatedDark)
+                            .clickable { showPersonaDialog = true }
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Text(text = "Change", fontSize = 11.sp, color = CyberSky, fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
                     if (assistantState == AssistantState.SPEAKING) {
                         IconButton(
                             onClick = { viewModel.stopSpeaking() },
-                            modifier = Modifier.testTag("chat_header_stop_speaking_button")
+                            modifier = Modifier.size(32.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Stop,
-                                contentDescription = "Stop Speaking",
-                                tint = MagentaGlow
-                            )
+                            Icon(imageVector = Icons.Default.Stop, contentDescription = "Stop", tint = MagentaGlow, modifier = Modifier.size(20.dp))
                         }
                     }
 
                     IconButton(
                         onClick = { showClearDialog = true },
-                        modifier = Modifier.testTag("chat_header_clear_button")
+                        modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteSweep,
-                            contentDescription = "Clear Conversation",
-                            tint = TextSecondary
-                        )
+                        Icon(imageVector = Icons.Default.DeleteSweep, contentDescription = "Clear", tint = TextSecondary, modifier = Modifier.size(20.dp))
                     }
                 }
             }
@@ -160,22 +190,21 @@ fun ChatScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
-                Spacer(modifier = Modifier.height(12.dp))
-                // Top Welcome / Attribution notice
+                Spacer(modifier = Modifier.height(8.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(CardDark.copy(alpha = 0.5f))
-                        .padding(12.dp),
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(CardDark.copy(alpha = 0.6f))
+                        .padding(10.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Alic AI voice assistant developed by Rohit Raj",
+                        text = "Alic AI Agentic Conversation • Developed by Rohit Raj",
                         fontSize = 11.sp,
                         color = TextMuted
                     )
@@ -185,6 +214,7 @@ fun ChatScreen(
             items(chatMessages, key = { it.id }) { message ->
                 ChatBubble(
                     message = message,
+                    persona = currentPersona,
                     isCurrentlySpeaking = assistantState == AssistantState.SPEAKING,
                     onRepeat = { viewModel.repeatMessage(message) },
                     onCopy = {
@@ -195,32 +225,33 @@ fun ChatScreen(
                 )
             }
 
-            // Thinking Bubble
-            if (assistantState == AssistantState.THINKING) {
+            // Pending Action Confirmation Card inside Chat
+            if (pendingConfirmation != null) {
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Start,
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp)),
+                        color = CardElevatedDark,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CyberSky)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(CardElevatedDark)
-                                .border(1.dp, NeonPurple.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    color = CyberSky,
-                                    strokeWidth = 2.dp
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(text = "ACTION PENDING APPROVAL", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CyberSky, letterSpacing = 1.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = pendingConfirmation!!.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Text(text = pendingConfirmation!!.description, fontSize = 11.sp, color = TextSecondary)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedAnimatedButton(
+                                    text = "Confirm & Execute",
+                                    onClick = { viewModel.confirmPendingAction() },
+                                    modifier = Modifier.weight(1f)
                                 )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = "Alic AI is thinking...",
-                                    color = TextSecondary,
-                                    fontSize = 13.sp
+                                OutlinedAnimatedButton(
+                                    text = "Cancel",
+                                    onClick = { viewModel.cancelPendingAction() },
+                                    containerColor = Color(0x22EF4444),
+                                    modifier = Modifier.weight(0.7f)
                                 )
                             }
                         }
@@ -228,8 +259,27 @@ fun ChatScreen(
                 }
             }
 
+            // Thinking State
+            if (assistantState == AssistantState.THINKING) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(CardElevatedDark)
+                            .border(1.dp, NeonPurple.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(15.dp), color = CyberSky, strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "${currentPersona.name} is planning...", color = TextSecondary, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
             item {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
 
@@ -242,36 +292,31 @@ fun ChatScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Mic Button
                 IconButton(
                     onClick = { viewModel.onMicClicked() },
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
                         .background(if (assistantState == AssistantState.LISTENING) CyberSky else CardElevatedDark)
-                        .testTag("chat_mic_button")
                 ) {
                     Icon(
                         imageVector = if (assistantState == AssistantState.SPEAKING) Icons.Default.Stop else Icons.Default.Mic,
                         contentDescription = "Voice Input",
                         tint = if (assistantState == AssistantState.LISTENING) SpaceDark else CyberSky,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Text Input Field
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("chat_text_input_field"),
-                    placeholder = { Text("Ask Alic AI anything...", color = TextMuted, fontSize = 14.sp) },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Ask ${currentPersona.name} or type a command...", color = TextMuted, fontSize = 13.sp) },
                     maxLines = 3,
                     shape = RoundedCornerShape(20.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -285,7 +330,6 @@ fun ChatScreen(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Send Button
                 IconButton(
                     onClick = {
                         if (inputText.isNotBlank()) {
@@ -295,20 +339,73 @@ fun ChatScreen(
                     },
                     enabled = inputText.isNotBlank(),
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
                         .background(if (inputText.isNotBlank()) CyberSky else CardElevatedDark)
-                        .testTag("chat_send_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Send,
-                        contentDescription = "Send Message",
+                        contentDescription = "Send",
                         tint = if (inputText.isNotBlank()) SpaceDark else TextMuted,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
         }
+    }
+
+    // Persona Selector Dialog
+    if (showPersonaDialog) {
+        AlertDialog(
+            onDismissRequest = { showPersonaDialog = false },
+            title = { Text(text = "Switch AI Persona", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ALL_PERSONAS.forEach { persona ->
+                        val isSelected = persona.id == currentPersona.id
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    viewModel.switchPersona(persona)
+                                    showPersonaDialog = false
+                                },
+                            color = if (isSelected) Color(0x3338BDF8) else CardElevatedDark,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyberSky else CardBorderDark)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                        .background(Brush.radialGradient(listOf(persona.primaryColor, persona.secondaryColor))),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = persona.avatarLetter, color = SpaceDark, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(text = persona.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                    Text(text = "${persona.gender.name.lowercase().replaceFirstChar { it.uppercase() }} • ${persona.subtitle}", fontSize = 10.sp, color = TextMuted)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showPersonaDialog = false }) {
+                    Text("Close", color = TextSecondary)
+                }
+            },
+            containerColor = CardDark,
+            shape = RoundedCornerShape(18.dp)
+        )
     }
 
     // Clear Confirmation Dialog
@@ -316,14 +413,13 @@ fun ChatScreen(
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
             title = { Text("Clear Conversation?", color = TextPrimary) },
-            text = { Text("This will remove all current messages and reset the conversation history.", color = TextSecondary) },
+            text = { Text("This will reset your chat history with ${currentPersona.name}.", color = TextSecondary) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         viewModel.clearConversation()
                         showClearDialog = false
-                    },
-                    modifier = Modifier.testTag("confirm_clear_conversation_button")
+                    }
                 ) {
                     Text("Clear All", color = ErrorRed)
                 }
@@ -342,6 +438,7 @@ fun ChatScreen(
 @Composable
 fun ChatBubble(
     message: ChatMessage,
+    persona: Persona,
     isCurrentlySpeaking: Boolean,
     onRepeat: () -> Unit,
     onCopy: () -> Unit,
@@ -356,20 +453,18 @@ fun ChatBubble(
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
         if (!isUser) {
-            // Alic AI Avatar Icon
             Box(
                 modifier = Modifier
-                    .size(34.dp)
+                    .size(32.dp)
                     .clip(CircleShape)
-                    .background(Brush.radialGradient(listOf(CyberSky, NeonPurple)))
-                    .border(1.dp, Color.White.copy(alpha = 0.5f), CircleShape),
+                    .background(Brush.radialGradient(listOf(persona.primaryColor, persona.secondaryColor))),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "A",
-                    color = Color.White,
+                    text = persona.avatarLetter,
+                    color = SpaceDark,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
+                    fontSize = 14.sp
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -377,22 +472,21 @@ fun ChatBubble(
 
         Column(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
-            modifier = Modifier.fillMaxWidth(0.82f)
+            modifier = Modifier.fillMaxWidth(0.84f)
         ) {
             Surface(
                 modifier = Modifier
                     .clip(
                         RoundedCornerShape(
-                            topStart = 18.dp,
-                            topEnd = 18.dp,
-                            bottomStart = if (isUser) 18.dp else 4.dp,
-                            bottomEnd = if (isUser) 4.dp else 18.dp
+                            topStart = 16.dp,
+                            topEnd = 16.dp,
+                            bottomStart = if (isUser) 16.dp else 4.dp,
+                            bottomEnd = if (isUser) 4.dp else 16.dp
                         )
-                    )
-                    .testTag("chat_bubble_${if (isUser) "user" else "alic"}_${message.id.take(6)}"),
+                    ),
                 color = when {
                     message.isError -> Color(0x33EF4444)
-                    isUser -> Color(0x2E38BDF8)
+                    isUser -> Color(0x3338BDF8)
                     else -> CardElevatedDark
                 },
                 border = androidx.compose.foundation.BorderStroke(
@@ -409,7 +503,7 @@ fun ChatBubble(
                         text = message.text,
                         color = if (message.isError) ErrorRed else TextPrimary,
                         fontSize = 14.sp,
-                        lineHeight = 20.sp
+                        lineHeight = 19.sp
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
@@ -429,26 +523,16 @@ fun ChatBubble(
                             Row {
                                 IconButton(
                                     onClick = onRepeat,
-                                    modifier = Modifier.size(24.dp).testTag("repeat_tts_button_${message.id.take(6)}")
+                                    modifier = Modifier.size(24.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.VolumeUp,
-                                        contentDescription = "Speak Again",
-                                        tint = CyberSky,
-                                        modifier = Modifier.size(15.dp)
-                                    )
+                                    Icon(imageVector = Icons.Default.VolumeUp, contentDescription = "Repeat", tint = CyberSky, modifier = Modifier.size(15.dp))
                                 }
                                 Spacer(modifier = Modifier.width(4.dp))
                                 IconButton(
                                     onClick = onCopy,
-                                    modifier = Modifier.size(24.dp).testTag("copy_message_button_${message.id.take(6)}")
+                                    modifier = Modifier.size(24.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ContentCopy,
-                                        contentDescription = "Copy Text",
-                                        tint = TextSecondary,
-                                        modifier = Modifier.size(15.dp)
-                                    )
+                                    Icon(imageVector = Icons.Default.ContentCopy, contentDescription = "Copy", tint = TextSecondary, modifier = Modifier.size(15.dp))
                                 }
                             }
                         }
