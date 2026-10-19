@@ -32,7 +32,8 @@ class SpeechManager(
 
     private var speechRecognizer: SpeechRecognizer? = null
     private val mainHandler = Handler(Looper.getMainLooper())
-    private var isListening = false
+    var isListening = false
+        private set
 
     fun isRecognitionAvailable(): Boolean {
         return SpeechRecognizer.isRecognitionAvailable(context)
@@ -58,7 +59,10 @@ class SpeechManager(
 
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    // Support Hindi and English naturally
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN,en-IN,en-US")
+                    putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("hi-IN", "en-IN", "en-US"))
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                     putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
@@ -125,7 +129,6 @@ class SpeechManager(
             }
 
             override fun onRmsChanged(rmsdB: Float) {
-                // rmsdB ranges typically from -2 to 10
                 val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
                 onRmsChangedCallback(normalized)
             }
@@ -146,10 +149,10 @@ class SpeechManager(
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is required for voice input."
                     SpeechRecognizer.ERROR_NETWORK -> "Network error during speech recognition."
                     SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timed out during speech recognition."
-                    SpeechRecognizer.ERROR_NO_MATCH -> "No speech was detected. Please try again."
-                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Speech recognizer is busy. Please try again."
+                    SpeechRecognizer.ERROR_NO_MATCH -> "No speech was detected."
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Speech recognizer is busy."
                     SpeechRecognizer.ERROR_SERVER -> "Speech recognition server error."
-                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Listening timed out with no speech input."
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Listening timed out."
                     else -> "Speech recognition error ($error)."
                 }
                 Log.w(TAG, "SpeechRecognizer error: $error ($message)")
@@ -164,7 +167,7 @@ class SpeechManager(
                 if (!recognizedText.isNullOrEmpty()) {
                     onFinalResult(recognizedText)
                 } else {
-                    onError("Could not understand speech. Please try again.")
+                    onError("Could not understand speech.")
                 }
             }
 

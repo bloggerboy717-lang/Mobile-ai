@@ -41,9 +41,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.example.ui.components.ApiKeySetupDialog
 import com.example.ui.screens.AppControlScreen
 import com.example.ui.screens.ChatScreen
@@ -51,6 +53,7 @@ import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.PermissionsScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.VisionScreen
+import com.example.ui.screens.AuthGateScreen
 import com.example.ui.theme.CardBorderDark
 import com.example.ui.theme.CardDark
 import com.example.ui.theme.CyberSky
@@ -63,12 +66,79 @@ import com.example.ui.theme.TextSecondary
 class MainActivity : ComponentActivity() {
 
     private val viewModel: AlicViewModel by viewModels()
+    private var lastPausedTimestamp: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Ensure Chromium WebView cache directories exist to avoid simple_file_enumerator / simple_index_file errors
+        try {
+            val jsDir = java.io.File(cacheDir, "WebView/Default/HTTP Cache/Code Cache/js")
+            if (!jsDir.exists()) {
+                jsDir.mkdirs()
+            }
+            val wasmDir = java.io.File(cacheDir, "WebView/Default/HTTP Cache/Code Cache/wasm")
+            if (!wasmDir.exists()) {
+                wasmDir.mkdirs()
+            }
+        } catch (_: Exception) {
+            // Ignore directory creation failure if restricted
+        }
+
         setContent {
             MyApplicationTheme {
+                AlicRoot(viewModel = viewModel)
+            }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        lastPausedTimestamp = System.currentTimeMillis()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (lastPausedTimestamp > 0L) {
+            val elapsedMinutes = (System.currentTimeMillis() - lastPausedTimestamp) / (1000 * 60)
+            if (elapsedMinutes >= 30) {
+                // Silently re-run license check per specification requirement 5
+                viewModel.triggerForegroundRevalidation()
+            }
+        }
+    }
+}
+
+@Composable
+fun AlicRoot(viewModel: AlicViewModel) {
+    val isAccessGranted by viewModel.isAccessGranted.collectAsState()
+    val revalidationTrigger by viewModel.revalidationTrigger.collectAsState()
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        AuthGateScreen(
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(if (!isAccessGranted) 1f else 0f)
+                .alpha(if (!isAccessGranted) 1f else 0f),
+            onAccessGranted = { email ->
+                viewModel.onAccessGranted(email)
+            },
+            onSignOut = {
+                viewModel.onSignOut()
+            },
+            onAccessRevoked = {
+                viewModel.onAccessRevoked()
+            },
+            revalidationTrigger = revalidationTrigger
+        )
+
+        if (isAccessGranted) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(2f)
+            ) {
                 AlicApp(viewModel = viewModel)
             }
         }

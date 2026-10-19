@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Alic AI Access Gate</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      background-color: #080C1E;
+      color: #E2E8F0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Ambient background glow */
+    .ambient-glow {
+      position: absolute;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(76, 169, 255, 0.15) 0%, rgba(157, 114, 254, 0.12) 50%, transparent 70%);
+      top: 15%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 420px;
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Branding Header */
+    .brand-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .brand-orb {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #5AB6FF 0%, #4CA9FF 35%, #7F5AF0 70%, #9D72FE 100%);
+      box-shadow: 0 0 24px rgba(76, 169, 255, 0.45), 0 0 48px rgba(157, 114, 254, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      animation: pulseOrb 3.5s ease-in-out infinite;
+    }
+
+    @keyframes pulseOrb {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 24px rgba(76, 169, 255, 0.45); }
+      50% { transform: scale(1.04); box-shadow: 0 0 36px rgba(157, 114, 254, 0.6); }
+    }
+
+    .brand-orb svg {
+      width: 36px;
+      height: 36px;
+      fill: #080C1E;
+    }
+
+    .brand-title {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      background: linear-gradient(135deg, #FFFFFF 0%, #5AB6FF 60%, #9D72FE 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 4px;
+    }
+
+    .brand-subtitle {
+      font-size: 13px;
+      color: #94A3B8;
+      letter-spacing: 0.5px;
+    }
+
+    /* Glass Card */
+    .glass-card {
+      width: 100%;
+      background: rgba(18, 24, 48, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(90, 182, 255, 0.25);
+      border-radius: 20px;
+      padding: 24px 20px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+      position: relative;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-description {
+      font-size: 13px;
+      color: #94A3B8;
+      line-height: 1.45;
+      margin-bottom: 20px;
+    }
+
+    /* User account badge */
+    .user-badge {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(76, 169, 255, 0.08);
+      border: 1px solid rgba(76, 169, 255, 0.25);
+      border-radius: 12px;
+      padding: 10px 14px;
+      margin-bottom: 18px;
+    }
+
+    .user-info {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .user-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #5AB6FF;
+    }
+
+    .user-email {
+      font-size: 13px;
+      font-weight: 600;
+      color: #FFFFFF;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 230px;
+    }
+
+    .btn-signout-mini {
+      background: transparent;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #F87171;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-signout-mini:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.15);
+    }
+
+    /* Code Input Field */
+    .input-group {
+      margin-bottom: 16px;
+    }
+
+    .input-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .input-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #CBD5E1;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .char-count {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94A3B8;
+      font-family: monospace;
+    }
+
+    .char-count.complete {
+      color: #5AB6FF;
+    }
+
+    .code-input {
+      width: 100%;
+      background: rgba(10, 14, 30, 0.85);
+      border: 1.5px solid rgba(90, 182, 255, 0.3);
+      border-radius: 12px;
+      padding: 14px 12px;
+      font-size: 15px;
+      font-family: "Courier New", Courier, monospace;
+      font-weight: 700;
+      color: #FFFFFF;
+      letter-spacing: 2px;
+      text-align: center;
+      text-transform: uppercase;
+      outline: none;
+      transition: all 0.25s ease;
+      user-select: text;
+    }
+
+    .code-input:focus {
+      border-color: #5AB6FF;
+      box-shadow: 0 0 14px rgba(90, 182, 255, 0.35);
+      background: rgba(14, 20, 42, 0.95);
+    }
+
+    .code-input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      border-color: rgba(148, 163, 184, 0.2);
+    }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.2s ease;
+      outline: none;
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    .btn-google {
+      background: #FFFFFF;
+      color: #1F2937;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+
+    .btn-google:hover:not(:disabled) {
+      background: #F1F5F9;
+      transform: translateY(-1px);
+    }
+
+    .btn-google svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .btn-verify {
+      background: linear-gradient(135deg, #4CA9FF 0%, #7F5AF0 50%, #9D72FE 100%);
+      color: #FFFFFF;
+      box-shadow: 0 4px 16px rgba(76, 169, 255, 0.35);
+      margin-top: 10px;
+    }
+
+    .btn-verify:hover:not(:disabled) {
+      box-shadow: 0 6px 22px rgba(157, 114, 254, 0.45);
+      transform: translateY(-1px);
+    }
+
+    .btn-website {
+      background: rgba(90, 182, 255, 0.12);
+      border: 1px solid rgba(90, 182, 255, 0.45);
+      color: #7DD3FC;
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+      font-size: 13.5px;
+    }
+
+    .btn-website:hover {
+      background: rgba(90, 182, 255, 0.22);
+      border-color: #5AB6FF;
+      color: #BAE6FD;
+      box-shadow: 0 0 12px rgba(90, 182, 255, 0.25);
+    }
+
+    .notice-box {
+      margin-top: 14px;
+      background: rgba(14, 20, 44, 0.75);
+      border: 1px solid rgba(90, 182, 255, 0.25);
+      border-radius: 12px;
+      padding: 12px 14px;
+      text-align: left;
+    }
+
+    .notice-box-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #93C5FD;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .notice-box-text {
+      font-size: 11.5px;
+      color: #CBD5E1;
+      line-height: 1.55;
+      margin: 0;
+    }
+
+    .notice-box-text strong {
+      color: #67E8F9;
+    }
+
+    .btn-outline-change {
+      background: transparent;
+      border: 1px solid rgba(157, 114, 254, 0.4);
+      color: #C084FC;
+      margin-top: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+
+    .btn-outline-change:hover:not(:disabled) {
+      background: rgba(157, 114, 254, 0.1);
+    }
+
+    /* Messages & Alerts */
+    .message-banner {
+      width: 100%;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 12.5px;
+      line-height: 1.4;
+      margin-top: 14px;
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .message-banner.error {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #FCA5A5;
+    }
+
+    .message-banner.warning {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #FCD34D;
+    }
+
+    .message-banner.success {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #6EE7B7;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #FFFFFF;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Loading overlay */
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(8, 12, 30, 0.85);
+      border-radius: 20px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 10;
+      backdrop-filter: blur(4px);
+    }
+
+    .loading-overlay.active {
+      display: flex;
+    }
+
+    .loading-text {
+      font-size: 13px;
+      color: #5AB6FF;
+      font-weight: 600;
+    }
+
+    /* Screen visibility */
+    .screen {
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .footer-note {
+      margin-top: 16px;
+      font-size: 11px;
+      color: #64748B;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    .footer-note span {
+      color: #5AB6FF;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-glow"></div>
+
+  <div class="container">
+    <!-- Brand Header -->
+    <div class="brand-header">
+      <div class="brand-orb">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
+      </div>
+      <h1 class="brand-title">ALIC AI</h1>
+      <p class="brand-subtitle">Voice AI Assistant • Secure License Gate</p>
+    </div>
+
+    <!-- Main Glass Card -->
+    <div class="glass-card">
+      <!-- Loading Overlay -->
+      <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner" style="width: 28px; height: 28px; border-width: 3px;"></div>
+        <div id="loadingText" class="loading-text">Verifying License...</div>
+      </div>
+
+      <!-- SCREEN 1: GOOGLE LOGIN -->
+      <div id="screenGoogle" class="screen active">
+        <h2 class="card-title">Sign In Required</h2>
+        <p class="card-description">
+          Sign in with your Google account to verify your voice assistant license key.
+        </p>
+
+        <button id="btnGoogleSignIn" class="btn btn-google">
+          <svg viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          Continue with Google
+        </button>
+
+        <a id="btnGoToWebsite" href="https://alic-ai-zeta.vercel.app" target="_blank" rel="noopener noreferrer" class="btn btn-website">
+          <svg style="width: 17px; height: 17px; fill: currentColor;" viewBox="0 0 24 24">
+            <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+          </svg>
+          Go to Website
+        </a>
+
+        <!-- Notice instructed by user -->
+        <div class="notice-box">
+          <div class="notice-box-title">
+            <svg style="width: 15px; height: 15px; fill: #60A5FA;" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+            </svg>
+            License Activation Notice
+          </div>
+          <p class="notice-box-text">
+            वेबसाइट पर जाकर अपने Google अकाउंट से अकाउंट बनाएं। अकाउंट बनाने के बाद प्लान (जितने दिन के लिए चाहिए) बाय करें। बाय करने के बाद आपको 25 अक्षरों का <strong>Access Code</strong> मिलेगा। उसी एक्सेस कोड को डालने के बाद यह ऐप खुलेगा।<br><br>
+            ⚠️ <strong>जरूरी:</strong> उसी Google ईमेल से लॉगिन करें जिससे आपने वेबसाइट पर अकाउंट बनाया और प्लान बाय किया है।
+          </p>
+        </div>
+
+        <div id="googleErrorBanner" class="message-banner error"></div>
+      </div>
+
+      <!-- SCREEN 2: ENTER ACCESS CODE -->
+      <div id="screenCode" class="screen">
+        <div class="user-badge">
+          <div class="user-info">
+            <span class="user-label">Authorized Account</span>
+            <span id="userEmailDisplay" class="user-email">user@gmail.com</span>
+          </div>
+          <button id="btnSignOut" class="btn-signout-mini" title="Sign out of Google">Sign out</button>
+        </div>
+
+        <h2 class="card-title">Enter Access Code</h2>
+        <p class="card-description">
+          Enter your 25-character license key (A–Z and 0–9) to activate Alic AI.
+        </p>
+
+        <div class="input-group">
+          <div class="input-label-row">
+            <label class="input-label" for="accessCodeInput">Access License Key</label>
+            <span id="charCount" class="char-count">0 / 25</span>
+          </div>
+          <input
+            id="accessCodeInput"
+            type="text"
+            class="code-input"
+            maxlength="25"
+            placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="characters"
+            spellcheck="false"
+          />
+        </div>
+
+        <button id="btnVerifyCode" class="btn btn-verify" disabled>
+          <span>Verify Access</span>
+        </button>
+
+        <button id="btnChangeCode" class="btn btn-outline-change" style="display: none;">
+          Change Access Code
+        </button>
+
+        <div id="codeErrorBanner" class="message-banner error"></div>
+        <div id="lockoutBanner" class="message-banner warning"></div>
+        <div id="codeSuccessBanner" class="message-banner success">
+          Access Granted! Launching Alic AI Voice Assistant...
+        </div>
+      </div>
+    </div>
+
+    <p class="footer-note">
+      Project <span>Alic AI</span> • Same Cloud Firestore &amp; Auth security as website
+    </p>
+  </div>
+
+  <!-- Firebase Modular JS SDK v10 -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signInWithRedirect,
+      getRedirectResult,
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      getDoc,
+      updateDoc,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // 1. Firebase configuration directly from user's web project
+    const firebaseConfig = {
+      apiKey: "AIzaSyBsY0mfUoHE9iF-jmn2KyCuV0TzHUiRpwI",
+      authDomain: "alic-ai-97661.firebaseapp.com",
+      projectId: "alic-ai-97661",
+      storageBucket: "alic-ai-97661.firebasestorage.app",
+      messagingSenderId: "114516141176",
+      appId: "1:114516141176:web:3e09c0c36eb12d8449f98d"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // DOM Elements
+    const screenGoogle = document.getElementById("screenGoogle");
+    const screenCode = document.getElementById("screenCode");
+    const btnGoogleSignIn = document.getElementById("btnGoogleSignIn");
+    const userEmailDisplay = document.getElementById("userEmailDisplay");
+    const btnSignOut = document.getElementById("btnSignOut");
+    const accessCodeInput = document.getElementById("accessCodeInput");
+    const charCount = document.getElementById("charCount");
+    const btnVerifyCode = document.getElementById("btnVerifyCode");
+    const btnChangeCode = document.getElementById("btnChangeCode");
+    const googleErrorBanner = document.getElementById("googleErrorBanner");
+    const codeErrorBanner = document.getElementById("codeErrorBanner");
+    const lockoutBanner = document.getElementById("lockoutBanner");
+    const codeSuccessBanner = document.getElementById("codeSuccessBanner");
+    const loadingOverlay = document.getElementById("loadingOverlay");
+    const loadingText = document.getElementById("loadingText");
+
+    // Local Storage Key
+    const STORAGE_KEY_CODE = "alic_voice_ai_code";
+    const STORAGE_KEY_LOCK = "alic_voice_ai_lock_until";
+    const STORAGE_KEY_FAILS = "alic_voice_ai_fail_count";
+
+    let currentUser = null;
+    let failedAttempts = parseInt(localStorage.getItem(STORAGE_KEY_FAILS) || "0", 10);
+    let lockUntilTimestamp = parseInt(localStorage.getItem(STORAGE_KEY_LOCK) || "0", 10);
+    let lockTimerInterval = null;
+    let lastActiveTimestamp = Date.now();
+    let isVerifyingRequest = false;
+
+    // Check Lockout on load
+    checkLockoutState();
+
+    // Subtle SHA-256 with Pure JS Fallback
+    async function computeSha256(str) {
+      if (window.crypto && window.crypto.subtle) {
+        try {
+          const encoder = new TextEncoder();
+          const data = encoder.encode(str);
+          const hashBuffer = await window.crypto.subtle.digest("SHA-256", data);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+        } catch (e) {
+          // Fall through to jsSha256
+        }
+      }
+      return jsSha256(str);
+    }
+
+    // Pure JS SHA-256 fallback to guarantee 100% reliability
+    function jsSha256(ascii) {
+      function rightRotate(value, amount) {
+        return (value >>> amount) | (value << (32 - amount));
+      }
+      var mathPow = Math.pow;
+      var maxWord = mathPow(2, 32);
+      var lengthProperty = 'length';
+      var i, j;
+      var result = '';
+      var words = [];
+      var asciiBitLength = ascii[lengthProperty] * 8;
+      var hash = [];
+      var k = [];
+      var primeCounter = 0;
+      var isComposite = {};
+      for (var candidate = 2; primeCounter < 64; candidate++) {
+        if (!isComposite[candidate]) {
+          for (i = 0; i < 313; i += candidate) {
+            isComposite[i] = candidate;
+          }
+          hash[primeCounter] = (mathPow(candidate, .5) * maxWord) | 0;
+          k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
+        }
+      }
+      ascii += '\x80';
+      while (ascii[lengthProperty] % 64 - 56) ascii += '\x00';
+      for (i = 0; i < ascii[lengthProperty]; i++) {
+        j = ascii.charCodeAt(i);
+        if (j >> 8) return;
+        words[i >> 2] |= j << ((3 - i) % 4) * 8;
+      }
+      words[words[lengthProperty]] = ((asciiBitLength / maxWord) | 0);
+      words[words[lengthProperty]] = (asciiBitLength | 0);
+      for (j = 0; j < words[lengthProperty];) {
+        var w = words.slice(j, j += 16);
+        var oldHash = hash;
+        hash = hash.slice(0, 8);
+        for (i = 0; i < 64; i++) {
+          var i2 = i + j;
+          var w15 = w[i - 15], w2 = w[i - 2];
+          var a = hash[0], e = hash[4];
+          var temp1 = hash[7]
+            + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25))
+            + ((e & hash[5]) ^ ((~e) & hash[6]))
+            + k[i]
+            + (w[i] = (i < 16) ? w[i] : (
+              w[i - 16]
+              + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3))
+              + w[i - 7]
+              + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))
+            ) | 0
+            );
+          var temp2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22))
+            + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+          hash = [(temp1 + temp2) | 0].concat(hash);
+          hash[4] = (hash[4] + temp1) | 0;
+        }
+        for (i = 0; i < 8; i++) {
+          hash[i] = (hash[i] + oldHash[i]) | 0;
+        }
+      }
+      for (i = 0; i < 8; i++) {
+        for (i2 = 3; i2 >= 0; i2--) {
+          var c = (hash[i] >> (i2 * 8)) & 255;
+          result += ((c < 16) ? '0' : '') + c.toString(16);
+        }
+      }
+      return result;
+    }
+
+    // Lockout Management (UI only, 5 wrong attempts -> 60s lock)
+    function checkLockoutState() {
+      const now = Date.now();
+      if (lockUntilTimestamp > now) {
+        setLockUI(true);
+        startLockCountdown();
+      } else {
+        setLockUI(false);
+      }
+    }
+
+    function recordFailedAttempt() {
+      failedAttempts++;
+      localStorage.setItem(STORAGE_KEY_FAILS, failedAttempts.toString());
+      if (failedAttempts >= 5) {
+        lockUntilTimestamp = Date.now() + 60000;
+        localStorage.setItem(STORAGE_KEY_LOCK, lockUntilTimestamp.toString());
+        setLockUI(true);
+        startLockCountdown();
+      }
+    }
+
+    function resetFailedAttempts() {
+      failedAttempts = 0;
+      lockUntilTimestamp = 0;
+      localStorage.removeItem(STORAGE_KEY_FAILS);
+      localStorage.removeItem(STORAGE_KEY_LOCK);
+      if (lockTimerInterval) {
+        clearInterval(lockTimerInterval);
+        lockTimerInterval = null;
+      }
+      setLockUI(false);
+    }
+
+    function setLockUI(isLocked) {
+      if (isLocked) {
+        accessCodeInput.disabled = true;
+        btnVerifyCode.disabled = true;
+      } else {
+        accessCodeInput.disabled = false;
+        lockoutBanner.style.display = "none";
+        updateVerifyButtonState();
+      }
+    }
+
+    function startLockCountdown() {
+      if (lockTimerInterval) clearInterval(lockTimerInterval);
+      const updateBanner = () => {
+        const remainingMs = lockUntilTimestamp - Date.now();
+        if (remainingMs <= 0) {
+          clearInterval(lockTimerInterval);
+          lockTimerInterval = null;
+          resetFailedAttempts();
+        } else {
+          const remainingSec = Math.ceil(remainingMs / 1000);
+          lockoutBanner.textContent = `Too many failed attempts. Code entry locked for ${remainingSec}s.`;
+          lockoutBanner.style.display = "flex";
+        }
+      };
+      updateBanner();
+      lockTimerInterval = setInterval(updateBanner, 1000);
+    }
+
+    // Input Handling: auto-uppercase, trim spaces, allow paste
+    accessCodeInput.addEventListener("input", (e) => {
+      // Auto-uppercase and remove spaces/dashes
+      const raw = e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+      e.target.value = raw.slice(0, 25);
+      
+      const len = e.target.value.length;
+      charCount.textContent = `${len} / 25`;
+      if (len === 25) {
+        charCount.classList.add("complete");
+      } else {
+        charCount.classList.remove("complete");
+      }
+      updateVerifyButtonState();
+      hideErrors();
+    });
+
+    function updateVerifyButtonState() {
+      if (isVerifyingRequest || lockUntilTimestamp > Date.now()) {
+        btnVerifyCode.disabled = true;
+        return;
+      }
+      const val = accessCodeInput.value.trim().toUpperCase();
+      btnVerifyCode.disabled = (val.length !== 25);
+    }
+
+    function showOverlay(text) {
+      loadingText.textContent = text || "Processing...";
+      loadingOverlay.classList.add("active");
+    }
+
+    function hideOverlay() {
+      loadingOverlay.classList.remove("active");
+    }
+
+    function showError(element, msg) {
+      element.textContent = msg;
+      element.style.display = "flex";
+    }
+
+    function hideErrors() {
+      googleErrorBanner.style.display = "none";
+      codeErrorBanner.style.display = "none";
+    }
+
+    // Google Sign In
+    btnGoogleSignIn.addEventListener("click", async () => {
+      hideErrors();
+      if (!navigator.onLine) {
+        showError(googleErrorBanner, "Internet required to verify access");
+        return;
+      }
+
+      showOverlay("Connecting with Google...");
+      btnGoogleSignIn.disabled = true;
+
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (err) {
+        console.warn("Popup blocked or failed, falling back to redirect:", err);
+        try {
+          await signInWithRedirect(auth, provider);
+        } catch (redirectErr) {
+          hideOverlay();
+          btnGoogleSignIn.disabled = false;
+          showError(googleErrorBanner, "Unable to complete Google sign-in. Please try again.");
+        }
+      }
+    });
+
+    // Sign Out
+    btnSignOut.addEventListener("click", async () => {
+      showOverlay("Signing out...");
+      localStorage.removeItem(STORAGE_KEY_CODE);
+      resetFailedAttempts();
+      accessCodeInput.value = "";
+      charCount.textContent = "0 / 25";
+      charCount.classList.remove("complete");
+      hideErrors();
+      try {
+        await signOut(auth);
+      } catch (e) {
+        console.error("Sign out error", e);
+      }
+      hideOverlay();
+      if (window.AndroidBridge && window.AndroidBridge.onSignOut) {
+        window.AndroidBridge.onSignOut();
+      }
+    });
+
+    // Change Code
+    btnChangeCode.addEventListener("click", () => {
+      localStorage.removeItem(STORAGE_KEY_CODE);
+      accessCodeInput.value = "";
+      charCount.textContent = "0 / 25";
+      charCount.classList.remove("complete");
+      btnChangeCode.style.display = "none";
+      hideErrors();
+      if (window.AndroidBridge && window.AndroidBridge.onAccessRevoked) {
+        window.AndroidBridge.onAccessRevoked();
+      }
+      accessCodeInput.focus();
+    });
+
+    // Verify Code Button Click
+    btnVerifyCode.addEventListener("click", async () => {
+      if (isVerifyingRequest) return;
+      hideErrors();
+      await validateCode(accessCodeInput.value, false);
+    });
+
+    // Core License Validation
+    async function validateCode(rawCode, isSilent) {
+      if (!navigator.onLine) {
+        if (!isSilent) {
+          showError(codeErrorBanner, "Internet required to verify access");
+        }
+        return false;
+      }
+
+      // Step 3a: code = input.trim().toUpperCase(); it must match /^[A-Z0-9]{25}$/
+      const code = (rawCode || "").trim().toUpperCase();
+      if (!/^[A-Z0-9]{25}$/.test(code)) {
+        if (!isSilent) {
+          showError(codeErrorBanner, "Access code must be exactly 25 characters (letters A–Z and digits 0–9).");
+        } else {
+          localStorage.removeItem(STORAGE_KEY_CODE);
+          switchToCodeScreen();
+        }
+        return false;
+      }
+
+      if (lockUntilTimestamp > Date.now()) {
+        if (!isSilent) {
+          showError(codeErrorBanner, "Input is currently locked due to previous failed attempts.");
+        }
+        return false;
+      }
+
+      isVerifyingRequest = true;
+      if (!isSilent) {
+        btnVerifyCode.disabled = true;
+        btnVerifyCode.innerHTML = `<span class="spinner"></span> Verifying...`;
+        showOverlay("Verifying License in Cloud Firestore...");
+      }
+
+      try {
+        // Step 3b: id = lowercase hex SHA-256 of code
+        const id = await computeSha256(code);
+
+        // Step 3c: getDoc(doc(db, "voiceAiLicenses", id)): a single document read, NOT a query.
+        const licenseDocRef = doc(db, "voiceAiLicenses", id);
+        const snapshot = await getDoc(licenseDocRef);
+
+        // Step 3d: If the read succeeds, access is granted. If it throws permission-denied or the document does not exist, access is denied.
+        if (!snapshot.exists()) {
+          throw new Error("LICENSE_DOES_NOT_EXIST");
+        }
+
+        // Access Granted!
+        resetFailedAttempts();
+        localStorage.setItem(STORAGE_KEY_CODE, code);
+
+        // Step 3e: On success, also try updateDoc(thatDoc, { lastValidatedAt: serverTimestamp() }) and ignore any error.
+        try {
+          await updateDoc(licenseDocRef, {
+            lastValidatedAt: serverTimestamp()
+          });
+        } catch (ignoreUpdateErr) {
+          // Explicitly ignored per requirement 3e
+        }
+
+        if (!isSilent) {
+          hideOverlay();
+          codeSuccessBanner.style.display = "flex";
+          btnChangeCode.style.display = "block";
+        }
+
+        // Open Voice AI Assistant!
+        if (window.AndroidBridge && window.AndroidBridge.onAccessGranted) {
+          window.AndroidBridge.onAccessGranted(currentUser ? currentUser.email : "");
+        }
+
+        return true;
+      } catch (err) {
+        // Access Denied: generic message only, never reveal reason.
+        recordFailedAttempt();
+        localStorage.removeItem(STORAGE_KEY_CODE);
+
+        if (window.AndroidBridge && window.AndroidBridge.onAccessRevoked) {
+          window.AndroidBridge.onAccessRevoked();
+        }
+
+        switchToCodeScreen();
+        if (!isSilent) {
+          hideOverlay();
+          showError(codeErrorBanner, "Invalid code, or it is expired, disabled, or not assigned to this account.");
+        }
+        return false;
+      } finally {
+        isVerifyingRequest = false;
+        if (!isSilent) {
+          btnVerifyCode.innerHTML = `<span>Verify Access</span>`;
+          updateVerifyButtonState();
+        }
+      }
+    }
+
+    // Switch between screens
+    function switchToGoogleScreen() {
+      screenGoogle.classList.add("active");
+      screenCode.classList.remove("active");
+      btnGoogleSignIn.disabled = false;
+    }
+
+    function switchToCodeScreen() {
+      screenGoogle.classList.remove("active");
+      screenCode.classList.add("active");
+      if (currentUser) {
+        userEmailDisplay.textContent = currentUser.email || "Signed In";
+      }
+      updateVerifyButtonState();
+    }
+
+    // Auth State Observer
+    onAuthStateChanged(auth, async (user) => {
+      hideOverlay();
+      if (user) {
+        currentUser = user;
+        switchToCodeScreen();
+
+        // Step 5: Save code in localStorage only to re-check it. On EVERY app load, silently re-run step 3
+        const savedCode = localStorage.getItem(STORAGE_KEY_CODE);
+        if (savedCode) {
+          showOverlay("Restoring Voice AI Session...");
+          btnChangeCode.style.display = "block";
+          accessCodeInput.value = savedCode;
+          charCount.textContent = `${savedCode.length} / 25`;
+          charCount.classList.add("complete");
+          await validateCode(savedCode, true);
+          hideOverlay();
+        }
+      } else {
+        currentUser = null;
+        localStorage.removeItem(STORAGE_KEY_CODE);
+        switchToGoogleScreen();
+      }
+    });
+
+    // Check redirect result on load
+    getRedirectResult(auth).catch((err) => {
+      console.warn("Redirect error handled:", err);
+    });
+
+    // Step 5: When the tab/app returns to foreground after 30+ minutes, silently re-run step 3
+    document.addEventListener("visibilitychange", async () => {
+      if (document.visibilityState === "visible") {
+        const elapsedMinutes = (Date.now() - lastActiveTimestamp) / (1000 * 60);
+        if (elapsedMinutes >= 30) {
+          const savedCode = localStorage.getItem(STORAGE_KEY_CODE);
+          if (savedCode && currentUser) {
+            await validateCode(savedCode, true);
+          } else if (!savedCode && currentUser) {
+            if (window.AndroidBridge && window.AndroidBridge.onAccessRevoked) {
+              window.AndroidBridge.onAccessRevoked();
+            }
+            switchToCodeScreen();
+          }
+        }
+        lastActiveTimestamp = Date.now();
+      } else {
+        lastActiveTimestamp = Date.now();
+      }
+    });
+
+    // Network status listeners
+    window.addEventListener("online", () => {
+      hideErrors();
+      updateVerifyButtonState();
+    });
+
+    window.addEventListener("offline", () => {
+      showError(codeErrorBanner, "Internet required to verify access");
+    });
+
+    // Exposed to Android native layer
+    window.triggerForegroundCheck = async function() {
+      const savedCode = localStorage.getItem(STORAGE_KEY_CODE);
+      if (savedCode && currentUser) {
+        return await validateCode(savedCode, true);
+      }
+      return false;
+    };
+
+    window.triggerSignOutFromNative = async function() {
+      localStorage.removeItem(STORAGE_KEY_CODE);
+      resetFailedAttempts();
+      accessCodeInput.value = "";
+      if (currentUser) {
+        await signOut(auth);
+      }
+      switchToGoogleScreen();
+    };
+
+    window.triggerChangeCodeFromNative = function() {
+      localStorage.removeItem(STORAGE_KEY_CODE);
+      accessCodeInput.value = "";
+      charCount.textContent = "0 / 25";
+      charCount.classList.remove("complete");
+      btnChangeCode.style.display = "none";
+      switchToCodeScreen();
+      accessCodeInput.focus();
+    };
+  </script>
+</body>
+</html>

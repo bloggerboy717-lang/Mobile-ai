@@ -30,7 +30,8 @@ class TtsManager(
     }
 
     private var tts: TextToSpeech? = null
-    private var isInitialized = false
+    var isInitialized = false
+        private set
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -64,21 +65,46 @@ class TtsManager(
                 }
             })
 
-            val localeResult = tts?.setLanguage(Locale.US)
+            // Set default natural language
+            val localeResult = tts?.setLanguage(Locale.getDefault())
             if (localeResult == TextToSpeech.LANG_MISSING_DATA || localeResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-                tts?.language = Locale.getDefault()
+                tts?.language = Locale.US
             }
 
             applyVoiceSettings(currentSettings)
-            Log.d(TAG, "TTS successfully initialized.")
+            Log.d(TAG, "High-fidelity natural TTS initialized.")
         } else {
             Log.e(TAG, "TTS initialization failed with status: $status")
         }
     }
 
+    /**
+     * Speaks naturally, dynamically detecting Hindi vs English to select the best non-robotic pronunciation
+     */
     fun speak(text: String, flush: Boolean = true) {
         if (!isInitialized || currentSettings.muteSpokenReplies) {
             return
+        }
+
+        // Clean text of markdown characters before speaking for non-robotic audio
+        val cleanSpeech = text
+            .replace(Regex("[*#_`~>|\\[\\]]"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+        if (cleanSpeech.isBlank()) return
+
+        // Detect if text contains Hindi / Devanagari script
+        val isHindi = cleanSpeech.any { it.code in 0x0900..0x097F }
+        if (isHindi) {
+            runCatching {
+                tts?.language = Locale("hi", "IN")
+                selectBestNaturalVoice(PersonaGender.NEUTRAL, "hi")
+            }
+        } else {
+            runCatching {
+                applyVoiceSettings(currentSettings)
+            }
         }
 
         val queueMode = if (flush) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
@@ -86,7 +112,7 @@ class TtsManager(
             putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID)
         }
 
-        tts?.speak(text, queueMode, params, UTTERANCE_ID)
+        tts?.speak(cleanSpeech, queueMode, params, UTTERANCE_ID)
     }
 
     fun stop() {
@@ -104,6 +130,7 @@ class TtsManager(
         val mappedPersona = when (persona.gender) {
             PersonaGender.FEMALE -> VoicePersona.FEMALE
             PersonaGender.MALE -> VoicePersona.MALE
+            PersonaGender.NEUTRAL -> VoicePersona.NEUTRAL
         }
         val newSettings = currentSettings.copy(
             persona = mappedPersona,
@@ -119,7 +146,7 @@ class TtsManager(
         applyVoiceSettings(newSettings)
     }
 
-    fun testVoice(sampleText: String = "Hello Rohit, I am Alic AI. My systems are calibrated and ready to assist you.") {
+    fun testVoice(sampleText: String = "नमस्ते रोहित! मैं हूँ आपका Gemini AI असिस्टेंट। मेरी आवाज़ पूरी तरह नेचुरल और बिना किसी रोबोटिक टोन के है।") {
         if (!isInitialized) return
         stop()
         val tempMute = currentSettings.muteSpokenReplies
@@ -129,16 +156,32 @@ class TtsManager(
         speak(sampleText, flush = true)
     }
 
+    /**
+     * Prioritizes high quality neural/wavenet voices available on the device
+     */
     fun getAvailableVoices(): List<Voice> {
         if (!isInitialized) return emptyList()
         return try {
-            tts?.voices?.toList()?.filter { voice ->
-                !voice.isNetworkConnectionRequired &&
-                        (voice.locale.language == Locale.getDefault().language || voice.locale.language == "en")
-            } ?: emptyList()
+            val voices = tts?.voices?.toList() ?: emptyList()
+            // Sort by quality: highest quality first, prioritizing neural/network voices for realism
+            voices.sortedWith(
+                compareByDescending<Voice> { it.quality }
+                    .thenByDescending { isNeuralOrHighQualityVoice(it) }
+            )
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    private fun isNeuralOrHighQualityVoice(voice: Voice): Boolean {
+        val name = voice.name.lowercase(Locale.ROOT)
+        return name.contains("network") ||
+                name.contains("neural") ||
+                name.contains("wavenet") ||
+                name.contains("premium") ||
+                name.contains("natural") ||
+                name.contains("enhanced") ||
+                (voice.quality >= Voice.QUALITY_HIGH)
     }
 
     fun hasExplicitGenderVoices(): Boolean {
@@ -158,6 +201,30 @@ class TtsManager(
                 voice.features?.any { it.contains("gender:male", ignoreCase = true) } == true
     }
 
+    private fun selectBestNaturalVoice(gender: PersonaGender, lang: String = "") {
+        val allVoices = getAvailableVoices()
+        val filteredByLang = if (lang.isNotEmpty()) {
+            allVoices.filter { it.locale.language.startsWith(lang, ignoreCase = true) }
+        } else allVoices
+
+        val pool = if (filteredByLang.isNotEmpty()) filteredByLang else allVoices
+
+        val target = when (gender) {
+            PersonaGender.FEMALE -> pool.firstOrNull { isFemaleVoice(it) && isNeuralOrHighQualityVoice(it) }
+                ?: pool.firstOrNull { isFemaleVoice(it) }
+                ?: pool.firstOrNull()
+            PersonaGender.MALE -> pool.firstOrNull { isMaleVoice(it) && isNeuralOrHighQualityVoice(it) }
+                ?: pool.firstOrNull { isMaleVoice(it) }
+                ?: pool.firstOrNull()
+            PersonaGender.NEUTRAL -> pool.firstOrNull { isNeuralOrHighQualityVoice(it) }
+                ?: pool.firstOrNull()
+        }
+
+        if (target != null) {
+            runCatching { tts?.voice = target }
+        }
+    }
+
     private fun applyVoiceSettings(settings: VoiceSettings) {
         if (!isInitialized) return
 
@@ -167,25 +234,36 @@ class TtsManager(
         val allVoices = getAvailableVoices()
         if (allVoices.isEmpty()) return
 
+        // If user manually chose a voice by name:
+        if (!settings.selectedVoiceName.isNullOrEmpty()) {
+            val matching = allVoices.firstOrNull { it.name == settings.selectedVoiceName }
+            if (matching != null) {
+                runCatching { tts?.voice = matching }
+                return
+            }
+        }
+
+        // Prefer high quality / natural neural voices
         val targetVoice = when (settings.persona) {
             VoicePersona.NEUTRAL -> {
-                allVoices.firstOrNull { !isFemaleVoice(it) && !isMaleVoice(it) }
+                allVoices.firstOrNull { isNeuralOrHighQualityVoice(it) && !isFemaleVoice(it) && !isMaleVoice(it) }
+                    ?: allVoices.firstOrNull { isNeuralOrHighQualityVoice(it) }
                     ?: allVoices.firstOrNull()
             }
             VoicePersona.FEMALE -> {
-                allVoices.firstOrNull { isFemaleVoice(it) } ?: allVoices.firstOrNull()
+                allVoices.firstOrNull { isFemaleVoice(it) && isNeuralOrHighQualityVoice(it) }
+                    ?: allVoices.firstOrNull { isFemaleVoice(it) }
+                    ?: allVoices.firstOrNull()
             }
             VoicePersona.MALE -> {
-                allVoices.firstOrNull { isMaleVoice(it) } ?: allVoices.firstOrNull()
+                allVoices.firstOrNull { isMaleVoice(it) && isNeuralOrHighQualityVoice(it) }
+                    ?: allVoices.firstOrNull { isMaleVoice(it) }
+                    ?: allVoices.firstOrNull()
             }
         }
 
         if (targetVoice != null) {
-            try {
-                tts?.voice = targetVoice
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not set custom voice: ${e.message}")
-            }
+            runCatching { tts?.voice = targetVoice }
         }
     }
 

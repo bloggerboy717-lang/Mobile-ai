@@ -30,6 +30,16 @@ sealed interface ConnectionStatus {
     data class RateLimit(val message: String) : ConnectionStatus
     data class NetworkError(val message: String) : ConnectionStatus
     data class GeneralError(val message: String) : ConnectionStatus
+
+    fun displayText(): String = when (this) {
+        is Connected -> "Connected ($model, ${latencyMs}ms)"
+        is InvalidApiKey -> "Invalid API Key: $message"
+        is RateLimit -> "Rate Limit: $message"
+        is NetworkError -> "Network Error: $message"
+        is GeneralError -> "Error: $message"
+        is Testing -> "Testing connection..."
+        is Untested -> "Untested"
+    }
 }
 
 data class GeminiModelOption(

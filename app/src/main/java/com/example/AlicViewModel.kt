@@ -5,13 +5,13 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Build
+import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.agent.ActionStatus
 import com.example.agent.ActionType
 import com.example.agent.AgentAction
 import com.example.agent.AgentActionEngine
-import com.example.agent.TaskPlan
 import com.example.data.ApiKeyStorage
 import com.example.data.AssistantState
 import com.example.data.ChatMessage
@@ -21,10 +21,11 @@ import com.example.data.MessageSender
 import com.example.data.VoiceSettings
 import com.example.persona.ALL_PERSONAS
 import com.example.persona.Persona
-import com.example.persona.PersonaId
+import com.example.service.AlicAccessibilityService
 import com.example.vision.ScreenCaptureService
 import com.example.voice.SpeechManager
 import com.example.voice.TtsManager
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,8 +36,17 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
     private val apiKeyStorage = ApiKeyStorage(application)
     private val geminiApiService = GeminiApiService()
     private val actionEngine = AgentActionEngine(application)
+    // Google Login & Access License Gate State (Validated in Cloud Firestore)
+    private val _isAccessGranted = MutableStateFlow(false)
+    val isAccessGranted: StateFlow<Boolean> = _isAccessGranted.asStateFlow()
 
-    // Current Persona
+    private val _authenticatedUserEmail = MutableStateFlow<String?>(null)
+    val authenticatedUserEmail: StateFlow<String?> = _authenticatedUserEmail.asStateFlow()
+
+    private val _revalidationTrigger = MutableStateFlow(0L)
+    val revalidationTrigger: StateFlow<Long> = _revalidationTrigger.asStateFlow()
+
+    // Current Persona (Default: Gemini)
     private val _currentPersona = MutableStateFlow(ALL_PERSONAS.first())
     val currentPersona: StateFlow<Persona> = _currentPersona.asStateFlow()
 
@@ -72,6 +82,11 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
     private val _showSetupDialog = MutableStateFlow(!apiKeyStorage.hasApiKey())
     val showSetupDialog: StateFlow<Boolean> = _showSetupDialog.asStateFlow()
 
+    // Continuous Conversation Loop Mode (Enabled by default so users don't have to keep pressing mic)
+    private val _isContinuousMode = MutableStateFlow(true)
+    val isContinuousMode: StateFlow<Boolean> = _isContinuousMode.asStateFlow()
+    private var userCancelledLoop = false
+
     // Agentic Actions & Task Engine
     private val _activeTaskAction = MutableStateFlow<AgentAction?>(null)
     val activeTaskAction: StateFlow<AgentAction?> = _activeTaskAction.asStateFlow()
@@ -100,7 +115,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
         listOf(
             ChatMessage(
                 sender = MessageSender.ALIC,
-                text = "Hello Rohit! I'm your AI agent. How can I help you today?"
+                text = ALL_PERSONAS.first().defaultGreeting
             )
         )
     )
@@ -125,6 +140,18 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                 _assistantState.value = AssistantState.SPEAKING
             } else if (_assistantState.value == AssistantState.SPEAKING) {
                 _assistantState.value = AssistantState.IDLE
+
+                // CONTINUOUS CONVERSATION LOOP:
+                // Once assistant finishes speaking, automatically restart listening so user never has to press mic again
+                if (_isContinuousMode.value && !userCancelledLoop) {
+                    viewModelScope.launch {
+                        delay(450)
+                        if (_assistantState.value == AssistantState.IDLE && _isContinuousMode.value && !userCancelledLoop) {
+                            _recognizedLiveText.value = ""
+                            speechManager.startListening()
+                        }
+                    }
+                }
             }
         }
         _voiceSettings.value = ttsManager.currentSettings
@@ -166,12 +193,52 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
             onError = { err ->
                 _errorMessage.value = err
                 _assistantState.value = AssistantState.IDLE
+
+                // If in continuous mode and timed out or had no match, softly re-listen after pause
+                if (_isContinuousMode.value && !userCancelledLoop &&
+                    (err.contains("timeout", ignoreCase = true) || err.contains("No speech", ignoreCase = true))) {
+                    viewModelScope.launch {
+                        delay(900)
+                        if (_assistantState.value == AssistantState.IDLE && _isContinuousMode.value && !userCancelledLoop) {
+                            speechManager.startListening()
+                        }
+                    }
+                }
             }
         )
 
         if (apiKeyStorage.hasApiKey()) {
             testCurrentConnection()
         }
+    }
+
+    fun isAccessibilityEnabled(): Boolean {
+        return AlicAccessibilityService.isServiceEnabled
+    }
+
+    fun openAccessibilitySettings() {
+        try {
+            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            getApplication<Application>().startActivity(intent)
+        } catch (e: Exception) {
+            _errorMessage.value = "Could not open accessibility settings: ${e.message}"
+        }
+    }
+
+    fun toggleContinuousMode() {
+        _isContinuousMode.value = !_isContinuousMode.value
+        if (!_isContinuousMode.value && _assistantState.value == AssistantState.LISTENING) {
+            speechManager.stopListening()
+        }
+    }
+
+    fun stopConversationLoop() {
+        userCancelledLoop = true
+        stopSpeaking()
+        speechManager.cancel()
+        _assistantState.value = AssistantState.IDLE
     }
 
     fun switchTab(index: Int) {
@@ -198,16 +265,20 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onMicClicked() {
         dismissError()
+        userCancelledLoop = false
         when (_assistantState.value) {
             AssistantState.LISTENING -> {
+                userCancelledLoop = true
                 speechManager.stopListening()
                 _assistantState.value = AssistantState.IDLE
             }
             AssistantState.SPEAKING -> {
+                userCancelledLoop = true
                 stopSpeaking()
             }
             AssistantState.THINKING -> {
-                // In progress
+                userCancelledLoop = true
+                _assistantState.value = AssistantState.IDLE
             }
             AssistantState.IDLE -> {
                 if (!apiKeyStorage.hasApiKey()) {
@@ -215,6 +286,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                     _showSetupDialog.value = true
                     return
                 }
+                userCancelledLoop = false
                 stopSpeaking()
                 _recognizedLiveText.value = ""
                 speechManager.startListening()
@@ -223,6 +295,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun cancelListening() {
+        userCancelledLoop = true
         speechManager.cancel()
         _assistantState.value = AssistantState.IDLE
     }
@@ -237,6 +310,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        userCancelledLoop = false
         stopSpeaking()
         speechManager.cancel()
         processUserPrompt(trimmed)
@@ -307,7 +381,19 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun executeAgentAction(action: AgentAction) {
         _activeTaskAction.value = action
-        val statusText = "Executing: ${action.title}..."
+
+        // Announce action
+        val statusText = if (action.type == ActionType.SEARCH_YOUTUBE) {
+            val query = action.params["query"] ?: ""
+            if (isAccessibilityEnabled()) {
+                "YouTube पर $query का पहला गाना प्ले कर रहा हूँ..."
+            } else {
+                "YouTube खोल रहा हूँ। ऑटो-प्ले के लिए Accessibility परमिशन ऑन करें।"
+            }
+        } else {
+            action.description
+        }
+
         _chatMessages.value = _chatMessages.value + ChatMessage(sender = MessageSender.ALIC, text = statusText)
         ttsManager.speak(statusText)
 
@@ -317,7 +403,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
             _activeTaskAction.value = null
 
             val resultSpeech = if (success) {
-                "Done! ${action.resultMessage ?: "Action completed."}"
+                action.resultMessage ?: "Action completed."
             } else {
                 "Could not complete ${action.title}. ${action.resultMessage ?: ""}"
             }
@@ -448,7 +534,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                 testCurrentConnection()
             }
         } else {
-            _errorMessage.value = "Failed to encrypt and save API key."
+            _errorMessage.value = "Failed to securely encrypt and save the API key."
         }
         return success
     }
@@ -456,55 +542,80 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteApiKey() {
         apiKeyStorage.deleteApiKey()
         _hasConfiguredKey.value = false
-        _maskedApiKey.value = "No key configured"
+        _maskedApiKey.value = ""
         _connectionStatus.value = ConnectionStatus.Untested
+        _showSetupDialog.value = true
     }
 
     fun testCurrentConnection() {
-        val key = apiKeyStorage.getApiKey()
-        if (key.isNullOrBlank()) {
+        val apiKey = apiKeyStorage.getApiKey()
+        if (apiKey.isNullOrBlank()) {
             _connectionStatus.value = ConnectionStatus.InvalidApiKey("No API key configured.")
             return
         }
 
         _connectionStatus.value = ConnectionStatus.Testing
         viewModelScope.launch {
-            val status = geminiApiService.testConnection(
-                apiKey = key,
-                modelId = _selectedModel.value
-            )
+            val status = geminiApiService.testConnection(apiKey, _selectedModel.value)
             _connectionStatus.value = status
-            if (status is ConnectionStatus.InvalidApiKey) {
-                _errorMessage.value = status.message
+            if (status is ConnectionStatus.InvalidApiKey || status is ConnectionStatus.RateLimit || status is ConnectionStatus.NetworkError) {
+                _errorMessage.value = status.displayText()
             }
         }
     }
 
     fun selectModel(modelId: String) {
-        _selectedModel.value = modelId
         apiKeyStorage.setSelectedModel(modelId)
+        _selectedModel.value = modelId
         if (apiKeyStorage.hasApiKey()) {
             testCurrentConnection()
         }
     }
 
-    fun updateVoiceSettings(newSettings: VoiceSettings) {
-        _voiceSettings.value = newSettings
-        ttsManager.updateSettings(newSettings)
+    fun updateVoiceSettings(settings: VoiceSettings) {
+        ttsManager.updateSettings(settings)
+        _voiceSettings.value = settings
     }
 
     fun testVoice() {
-        ttsManager.testVoice(_currentPersona.value.defaultGreeting)
+        ttsManager.testVoice()
     }
 
     fun dismissError() {
         _errorMessage.value = null
     }
 
+    // Google Login & Access Gate Callbacks
+    fun onAccessGranted(email: String) {
+        _authenticatedUserEmail.value = email.ifBlank { null }
+        _isAccessGranted.value = true
+    }
+
+    fun onAccessRevoked() {
+        _isAccessGranted.value = false
+    }
+
+    fun onSignOut() {
+        _isAccessGranted.value = false
+        _authenticatedUserEmail.value = null
+    }
+
+    fun triggerForegroundRevalidation() {
+        _revalidationTrigger.value = System.currentTimeMillis()
+    }
+
+    fun revokeAccessAndChangeCode() {
+        _isAccessGranted.value = false
+    }
+
+    fun signOutFromApp() {
+        _isAccessGranted.value = false
+        _authenticatedUserEmail.value = null
+    }
+
     override fun onCleared() {
         super.onCleared()
-        speechManager.destroy()
         ttsManager.shutdown()
-        stopScreenVision()
+        speechManager.destroy()
     }
 }

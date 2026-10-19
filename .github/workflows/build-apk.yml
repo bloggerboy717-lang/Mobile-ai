@@ -14,6 +14,8 @@ jobs:
   build-apk:
     name: Build Debug APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -72,10 +74,40 @@ jobs:
             exit 1
           fi
 
+      - name: Prepare Direct APK
+        run: |
+          mkdir -p release-apk
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/Alic-AI.apk
+          ls -lh release-apk/Alic-AI.apk
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: alic-ai-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Alic-AI-apk
+          path: release-apk/Alic-AI.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish Direct APK to GitHub Releases (No ZIP, Single Click)
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/heads/main')
+        with:
+          tag_name: v1.0
+          name: "Alic AI v1.0 Direct APK"
+          body: |
+            ## 📱 Alic AI - Native Android AI Voice Assistant
+            **Developer:** Rohit Raj
+
+            ### 🚀 Direct APK Download (बिना ZIP के डायरेक्ट डाउनलोड):
+            Click on **`Alic-AI.apk`** below under Assets to download directly on your Android phone with 1 click. No ZIP file and no terminal required!
+
+            #### Key Features:
+            - **Gemini Persona (Non-Robotic)**: Ultra natural, conversational voice assistant.
+            - **Continuous Hands-Free Conversation**: Tap mic once, then speak back and forth freely without clicking mic again.
+            - **Accessibility Automation**: Automatic YouTube playback (*"YouTube ओपन करके यो यो हनी सिंह का पहला गाना प्ले करो"*).
+            - **Agentic Phone Control**: Torch, Apps, Maps, Volume, Clock, and Screen Vision.
+          files: release-apk/Alic-AI.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

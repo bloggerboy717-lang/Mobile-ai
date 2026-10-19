@@ -28,9 +28,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.data.AssistantState
-import com.example.ui.theme.CyberSky
-import com.example.ui.theme.MagentaGlow
-import com.example.ui.theme.NeonPurple
+import com.example.ui.theme.OrbCenterNavy
+import com.example.ui.theme.SoftCyan
+import com.example.ui.theme.SoftLavender
+import com.example.ui.theme.SoftLilac
+import com.example.ui.theme.SoftSkyBlue
+import com.example.ui.theme.SoftViolet
 
 @Composable
 fun BigMicButton(
@@ -62,7 +65,7 @@ fun BigMicButton(
                     .size(92.dp)
                     .scale(pulseScale)
                     .clip(CircleShape)
-                    .background(CyberSky.copy(alpha = 0.22f))
+                    .background(SoftCyan.copy(alpha = 0.25f))
             )
         }
 
@@ -72,10 +75,10 @@ fun BigMicButton(
                 .clip(CircleShape)
                 .background(
                     when (assistantState) {
-                        AssistantState.LISTENING -> Brush.linearGradient(listOf(CyberSky, NeonPurple))
-                        AssistantState.SPEAKING -> Brush.linearGradient(listOf(MagentaGlow, NeonPurple))
-                        AssistantState.THINKING -> Brush.linearGradient(listOf(NeonPurple, CyberSky))
-                        AssistantState.IDLE -> Brush.linearGradient(listOf(CyberSky, NeonPurple))
+                        AssistantState.LISTENING -> Brush.linearGradient(listOf(SoftSkyBlue, SoftLilac))
+                        AssistantState.SPEAKING -> Brush.linearGradient(listOf(SoftLilac, SoftViolet))
+                        AssistantState.THINKING -> Brush.linearGradient(listOf(SoftLavender, SoftCyan))
+                        AssistantState.IDLE -> Brush.linearGradient(listOf(SoftCyan, SoftLilac))
                     }
                 )
                 .border(2.dp, Color.White.copy(alpha = 0.35f), CircleShape)
@@ -90,7 +93,7 @@ fun BigMicButton(
                     else -> Icons.Default.Mic
                 },
                 contentDescription = "Voice Input",
-                tint = Color.White,
+                tint = OrbCenterNavy,
                 modifier = Modifier.size(36.dp)
             )
         }

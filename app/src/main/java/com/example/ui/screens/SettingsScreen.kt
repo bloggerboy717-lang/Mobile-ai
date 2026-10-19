@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -140,6 +141,92 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
+            // 0. GOOGLE ACCOUNT & ACCESS LICENSE GATE
+            val authenticatedEmail by viewModel.authenticatedUserEmail.collectAsState()
+            SettingsCard(
+                title = "Google Account & Access License",
+                icon = Icons.Default.Security,
+                iconTint = CyberSky
+            ) {
+                Text(
+                    text = "Your access to Alic AI Voice Assistant is verified with Firebase Auth and Cloud Firestore (voiceAiLicenses).",
+                    fontSize = 13.sp,
+                    color = TextSecondary,
+                    lineHeight = 18.sp
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = CardElevatedDark,
+                    border = BorderStroke(1.dp, CardBorderDark)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Signed in as:",
+                                fontSize = 11.sp,
+                                color = TextMuted,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = authenticatedEmail ?: "Google Account",
+                                fontSize = 14.sp,
+                                color = TextPrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = SuccessGreen.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "ACTIVE",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SuccessGreen
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedAnimatedButton(
+                        text = "Change Code",
+                        onClick = {
+                            viewModel.revokeAccessAndChangeCode()
+                        },
+                        modifier = Modifier.weight(1f),
+                        borderGradient = Brush.horizontalGradient(listOf(CyberSky, NeonPurple)),
+                        containerColor = CyberSky.copy(alpha = 0.15f)
+                    )
+                    OutlinedAnimatedButton(
+                        text = "Sign Out",
+                        onClick = {
+                            viewModel.signOutFromApp()
+                        },
+                        modifier = Modifier.weight(1f),
+                        borderGradient = Brush.horizontalGradient(listOf(ErrorRed, ErrorRed.copy(alpha = 0.7f))),
+                        containerColor = ErrorRed.copy(alpha = 0.15f)
+                    )
+                }
+            }
+
             // 1. GEMINI API CONFIGURATION
             SettingsCard(
                 title = "Gemini API Key Configuration",
