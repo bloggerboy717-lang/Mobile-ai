@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
-import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,32 +20,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.NetworkCheck
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.RecordVoiceOver
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.filled.VolumeMute
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -57,37 +36,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.AlicViewModel
-import com.example.data.AVAILABLE_GEMINI_MODELS
 import com.example.data.ConnectionStatus
 import com.example.data.VoiceSettings
-import com.example.persona.ALL_PERSONAS
-import com.example.persona.Persona
-import com.example.ui.components.ConnectionStatusBanner
-import com.example.ui.components.OutlinedAnimatedButton
-import com.example.ui.theme.CardBorderDark
-import com.example.ui.theme.CardDark
-import com.example.ui.theme.CardElevatedDark
-import com.example.ui.theme.CyberSky
-import com.example.ui.theme.ErrorRed
-import com.example.ui.theme.MagentaGlow
-import com.example.ui.theme.NeonPurple
-import com.example.ui.theme.SpaceDark
-import com.example.ui.theme.SuccessGreen
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
-import com.example.ui.theme.WarningAmber
+import com.example.ui.screens.settings.AiSystemSubSetting
+import com.example.ui.screens.settings.OrbThemeSubSetting
+import com.example.ui.screens.settings.SettingsSection
+import com.example.ui.screens.settings.SosEmergencySubSetting
+import com.example.ui.screens.settings.StudentSubSetting
+import com.example.ui.screens.settings.VoiceAudioSubSetting
+import com.example.ui.theme.ThemeColors
 
 @Composable
 fun SettingsScreen(
@@ -100,465 +62,262 @@ fun SettingsScreen(
     onNavigateToPermissions: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val currentPersona by viewModel.currentPersona.collectAsState()
+    // Current active Sub-Setting (null = Main Settings Menu)
+    var activeSection by remember { mutableStateOf<SettingsSection?>(null) }
 
-    var editingKey by remember { mutableStateOf(!hasConfiguredKey) }
-    var apiKeyInput by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
-    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    // Intercept system Back button to exit sub-setting smoothly
+    BackHandler(enabled = activeSection != null) {
+        activeSection = null
+    }
+
+    // Dynamic App Theme State
+    val themeColors by viewModel.themeColors.collectAsState()
+    val currentThemePreset by viewModel.currentThemePreset.collectAsState()
+    val customHexColor by viewModel.customHexColor.collectAsState()
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(SpaceDark)
+            .background(themeColors.background)
     ) {
-        // Top Header
+        // TOP HEADER (100% English)
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = CardDark,
-            shadowElevation = 4.dp
+            color = themeColors.cardBackground,
+            shadowElevation = 2.dp
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Settings",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
+                if (activeSection == null) {
+                    // Main Settings Header
+                    Column {
+                        Text(
+                            text = "Settings",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = themeColors.textPrimary
+                        )
+                        Text(
+                            text = "Preferences and Intelligence",
+                            fontSize = 11.sp,
+                            color = themeColors.textSecondary
+                        )
+                    }
+                } else {
+                    // Sub-Setting Header with Back button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        IconButton(
+                            onClick = { activeSection = null },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(themeColors.cardElevated)
+                                .border(1.dp, themeColors.cardBorder, CircleShape)
+                                .testTag("sub_setting_back_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back to Settings",
+                                tint = themeColors.primaryAccent,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Text(
+                            text = activeSection!!.title,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = themeColors.textPrimary
+                        )
+                    }
+                }
+
+                // Close 'X' button to return directly to Home screen
+                IconButton(
+                    onClick = { viewModel.switchTab(0) },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(themeColors.cardElevated)
+                        .border(1.dp, themeColors.cardBorder, CircleShape)
+                        .testTag("settings_close_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close Settings",
+                        tint = themeColors.textPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
 
+        // CONTENT BODY (Tight spacing, no excessive gaps)
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-
-            // 1. GEMINI API CONFIGURATION
-            SettingsCard(
-                title = "Gemini API Key Configuration",
-                icon = Icons.Default.Key,
-                iconTint = CyberSky
-            ) {
-                Text(
-                    text = "Provide your personal Google Gemini API key. The key is encrypted locally using Android Keystore AES-GCM.",
-                    fontSize = 13.sp,
-                    color = TextSecondary,
-                    lineHeight = 18.sp
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                if (hasConfiguredKey && !editingKey) {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp)),
-                        color = CardElevatedDark,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderDark)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(text = "SAVED API KEY", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CyberSky, letterSpacing = 1.sp)
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(text = maskedApiKey, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
-                            }
-                            Row {
-                                IconButton(onClick = { editingKey = true }) {
-                                    Icon(imageVector = Icons.Default.Edit, contentDescription = "Edit", tint = CyberSky)
-                                }
-                                IconButton(onClick = { showDeleteConfirmDialog = true }) {
-                                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = ErrorRed)
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    OutlinedTextField(
-                        value = apiKeyInput,
-                        onValueChange = { apiKeyInput = it.trim() },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Gemini API Key", color = TextSecondary) },
-                        placeholder = { Text("Enter AIzaSy... key", color = TextMuted) },
-                        singleLine = true,
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(
-                                    imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = "Toggle Visibility",
-                                    tint = TextSecondary
-                                )
-                            }
-                        },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = CyberSky,
-                            unfocusedBorderColor = CardBorderDark,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary,
-                            cursorColor = CyberSky
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedAnimatedButton(
-                            text = "Save API Key",
-                            icon = Icons.Default.Save,
-                            onClick = {
-                                if (apiKeyInput.isNotBlank()) {
-                                    viewModel.saveApiKey(apiKeyInput)
-                                    editingKey = false
-                                    apiKeyInput = ""
-                                    Toast.makeText(context, "API Key saved securely", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            enabled = apiKeyInput.isNotBlank(),
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (hasConfiguredKey) {
-                            TextButton(onClick = { editingKey = false; apiKeyInput = "" }) {
-                                Text("Cancel", color = TextSecondary)
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-                ConnectionStatusBanner(status = connectionStatus)
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedAnimatedButton(
-                    text = "Test Gemini Connection",
-                    icon = Icons.Default.NetworkCheck,
-                    onClick = { viewModel.testCurrentConnection() },
-                    enabled = hasConfiguredKey && connectionStatus !is ConnectionStatus.Testing,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Text(text = "MODEL CONFIGURATION", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = NeonPurple, letterSpacing = 1.sp)
-                Spacer(modifier = Modifier.height(6.dp))
-
-                AVAILABLE_GEMINI_MODELS.forEach { model ->
-                    val isSelected = model.id == selectedModel
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { viewModel.selectModel(model.id) },
-                        color = if (isSelected) Color(0x2238BDF8) else CardElevatedDark,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyberSky else CardBorderDark)
-                    ) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .clip(CircleShape)
-                                    .border(2.dp, if (isSelected) CyberSky else TextMuted, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isSelected) {
-                                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(CyberSky))
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(text = model.displayName, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) CyberSky else TextPrimary)
-                                Text(text = model.description, fontSize = 11.sp, color = TextMuted)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 2. 5 AI PERSONAS & VOICE SETTINGS
-            SettingsCard(
-                title = "5 AI Personas & Voice Settings",
-                icon = Icons.Default.RecordVoiceOver,
-                iconTint = NeonPurple
-            ) {
-                Text(
-                    text = "Choose from 5 distinct AI companions. Each features a custom voice configuration and unique intelligence role.",
-                    fontSize = 13.sp,
-                    color = TextSecondary,
-                    lineHeight = 18.sp
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                ALL_PERSONAS.forEach { persona ->
-                    val isSelected = persona.id == currentPersona.id
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { viewModel.switchPersona(persona) },
-                        color = if (isSelected) Color(0x2238BDF8) else CardElevatedDark,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyberSky else CardBorderDark)
-                    ) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(Brush.radialGradient(listOf(persona.primaryColor, persona.secondaryColor))),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(text = persona.avatarLetter, color = SpaceDark, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(text = persona.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(text = "(${persona.gender.name.lowercase()})", fontSize = 11.sp, color = CyberSky)
-                                }
-                                Text(text = persona.subtitle, fontSize = 11.sp, color = TextMuted)
-                            }
-                            if (isSelected) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(CyberSky)
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(text = "Active", fontSize = 11.sp, color = SpaceDark, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Mute Spoken Replies
-                Row(
+            if (activeSection == null) {
+                // MAIN SETTINGS MENU: Clean cards with Logo in front, Name, and Arrow at end
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(CardElevatedDark)
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (voiceSettings.muteSpokenReplies) Icons.Default.VolumeMute else Icons.Default.VolumeUp,
-                            contentDescription = null,
-                            tint = if (voiceSettings.muteSpokenReplies) WarningAmber else CyberSky,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(text = "Mute Spoken Responses", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                    }
-                    Switch(
-                        checked = voiceSettings.muteSpokenReplies,
-                        onCheckedChange = { isMuted ->
-                            viewModel.updateVoiceSettings(voiceSettings.copy(muteSpokenReplies = isMuted))
-                        },
-                        colors = SwitchDefaults.colors(checkedThumbColor = CyberSky, checkedTrackColor = CardBorderDark)
+                    // 1. ORB & Theme Settings
+                    SettingCategoryCard(
+                        section = SettingsSection.ORB_THEME,
+                        themeColors = themeColors,
+                        onClick = { activeSection = SettingsSection.ORB_THEME }
+                    )
+
+                    // 2. Student Profile
+                    SettingCategoryCard(
+                        section = SettingsSection.STUDENT_PROFILE,
+                        themeColors = themeColors,
+                        onClick = { activeSection = SettingsSection.STUDENT_PROFILE }
+                    )
+
+                    // 3. Voice Models
+                    SettingCategoryCard(
+                        section = SettingsSection.VOICE_AUDIO,
+                        themeColors = themeColors,
+                        onClick = { activeSection = SettingsSection.VOICE_AUDIO }
+                    )
+
+                    // 4. Emergency SOS
+                    SettingCategoryCard(
+                        section = SettingsSection.SOS_EMERGENCY,
+                        themeColors = themeColors,
+                        onClick = { activeSection = SettingsSection.SOS_EMERGENCY }
+                    )
+
+                    // 5. AI & Model Settings (Tight spacing directly following SOS)
+                    SettingCategoryCard(
+                        section = SettingsSection.AI_SYSTEM,
+                        themeColors = themeColors,
+                        onClick = { activeSection = SettingsSection.AI_SYSTEM }
                     )
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Speech Rate & Pitch
-                Text(text = "Speech Rate: ${String.format(java.util.Locale.US, "%.1fx", voiceSettings.speechRate)}", fontSize = 12.sp, color = TextPrimary)
-                Slider(
-                    value = voiceSettings.speechRate,
-                    onValueChange = { viewModel.updateVoiceSettings(voiceSettings.copy(speechRate = it)) },
-                    valueRange = 0.5f..2.0f,
-                    colors = SliderDefaults.colors(thumbColor = CyberSky, activeTrackColor = CyberSky)
-                )
-
-                Text(text = "Voice Pitch: ${String.format(java.util.Locale.US, "%.1fx", voiceSettings.pitch)}", fontSize = 12.sp, color = TextPrimary)
-                Slider(
-                    value = voiceSettings.pitch,
-                    onValueChange = { viewModel.updateVoiceSettings(voiceSettings.copy(pitch = it)) },
-                    valueRange = 0.5f..1.5f,
-                    colors = SliderDefaults.colors(thumbColor = NeonPurple, activeTrackColor = NeonPurple)
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedAnimatedButton(
-                    text = "Test Persona Voice",
-                    icon = Icons.Default.PlayArrow,
-                    onClick = { viewModel.testVoice() },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            // 3. PERMISSIONS DASHBOARD SHORTCUT
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .clickable { onNavigateToPermissions() },
-                color = CardDark,
-                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderDark)
-            ) {
-                Row(
-                    modifier = Modifier.padding(18.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(SuccessGreen.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(imageVector = Icons.Default.Security, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(text = "Permissions Dashboard", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                            Text(text = "Microphone, Camera, Vision & Accessibility", fontSize = 11.sp, color = TextMuted)
-                        }
+            } else {
+                // ACTIVE SUB-SETTING VIEW
+                when (activeSection!!) {
+                    SettingsSection.ORB_THEME -> {
+                        OrbThemeSubSetting(
+                            viewModel = viewModel,
+                            currentThemePreset = currentThemePreset,
+                            customHexColor = customHexColor,
+                            themeColors = themeColors
+                        )
                     }
-                    Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = TextMuted)
-                }
-            }
-
-            // 4. SECURITY & BEST PRACTICES
-            SettingsCard(
-                title = "Security & Keystore",
-                icon = Icons.Default.Security,
-                iconTint = SuccessGreen
-            ) {
-                Text(
-                    text = "• Hardware-Backed Protection: Stored keys are encrypted with AES/GCM backed by Android KeyStore.\n\n" +
-                            "• Zero Embedded Keys: No API credentials are committed to git repositories or packaged in the build.\n\n" +
-                            "• Production Recommendation: For production deployments, route remote AI requests through an authenticated backend server proxy to keep API keys server-side.",
-                    fontSize = 12.sp,
-                    color = TextSecondary,
-                    lineHeight = 17.sp
-                )
-            }
-
-            // 5. ABOUT
-            SettingsCard(
-                title = "About Alic AI",
-                icon = Icons.Default.Info,
-                iconTint = MagentaGlow
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(text = "App", fontSize = 13.sp, color = TextMuted)
-                        Text(text = "Alic AI — Ultimate Agentic Assistant", fontSize = 13.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    SettingsSection.STUDENT_PROFILE -> {
+                        StudentSubSetting(
+                            viewModel = viewModel,
+                            themeColors = themeColors
+                        )
                     }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(text = "Developer", fontSize = 13.sp, color = TextMuted)
-                        Text(text = "Rohit Raj", fontSize = 13.sp, color = CyberSky, fontWeight = FontWeight.Bold)
+                    SettingsSection.VOICE_AUDIO -> {
+                        VoiceAudioSubSetting(
+                            viewModel = viewModel,
+                            voiceSettings = voiceSettings,
+                            themeColors = themeColors
+                        )
                     }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(text = "Version", fontSize = 13.sp, color = TextMuted)
-                        Text(text = "2.0.0 (Agentic Edition)", fontSize = 13.sp, color = TextSecondary)
+                    SettingsSection.SOS_EMERGENCY -> {
+                        SosEmergencySubSetting(
+                            viewModel = viewModel,
+                            themeColors = themeColors
+                        )
+                    }
+                    SettingsSection.AI_SYSTEM -> {
+                        AiSystemSubSetting(
+                            viewModel = viewModel,
+                            hasConfiguredKey = hasConfiguredKey,
+                            maskedApiKey = maskedApiKey,
+                            connectionStatus = connectionStatus,
+                            selectedModel = selectedModel,
+                            onNavigateToPermissions = onNavigateToPermissions,
+                            themeColors = themeColors
+                        )
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
         }
-    }
-
-    if (showDeleteConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text("Delete Saved API Key?", color = TextPrimary) },
-            text = { Text("This will permanently remove the encrypted key from Android KeyStore.", color = TextSecondary) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteApiKey()
-                        showDeleteConfirmDialog = false
-                        editingKey = true
-                        Toast.makeText(context, "API Key deleted", Toast.LENGTH_SHORT).show()
-                    }
-                ) {
-                    Text("Delete", color = ErrorRed)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirmDialog = false }) {
-                    Text("Cancel", color = TextSecondary)
-                }
-            },
-            containerColor = CardDark,
-            shape = RoundedCornerShape(18.dp)
-        )
     }
 }
 
+/**
+ * Minimalist, elegant card representing each Sub-Setting:
+ * Leading Logo -> Title -> Trailing Arrow
+ */
 @Composable
-fun SettingsCard(
-    title: String,
-    icon: ImageVector,
-    iconTint: Color,
-    content: @Composable () -> Unit
+private fun SettingCategoryCard(
+    section: SettingsSection,
+    themeColors: ThemeColors,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp)),
-        color = CardDark,
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderDark)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .testTag(section.testTag),
+        color = themeColors.cardBackground,
+        border = BorderStroke(1.dp, themeColors.cardBorder)
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Leading Logo / Icon
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(themeColors.primaryAccent.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(iconTint.copy(alpha = 0.15f))
-                        .border(1.dp, iconTint.copy(alpha = 0.35f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = iconTint,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                Icon(
+                    imageVector = section.icon,
+                    contentDescription = null,
+                    tint = themeColors.primaryAccent,
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
-            content()
+            // Name / Title
+            Text(
+                text = section.title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = themeColors.textPrimary,
+                modifier = Modifier.weight(1f)
+            )
+
+            // Trailing Chevron Arrow to enter inside
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                contentDescription = "Open ${section.title}",
+                tint = themeColors.textMuted,
+                modifier = Modifier.size(14.dp)
+            )
         }
     }
 }
-

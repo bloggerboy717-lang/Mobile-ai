@@ -3,11 +3,10 @@ package com.example.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,9 +33,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.CyberSky
-import com.example.ui.theme.NeonPurple
-import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.AppTheme
 
 @Composable
 fun OutlinedAnimatedButton(
@@ -45,9 +43,13 @@ fun OutlinedAnimatedButton(
     icon: ImageVector? = null,
     enabled: Boolean = true,
     shape: Shape = RoundedCornerShape(16.dp),
-    borderGradient: Brush = Brush.horizontalGradient(listOf(CyberSky, NeonPurple)),
-    containerColor: Color = Color(0x2238BDF8),
-    contentColor: Color = TextPrimary,
+    borderGradient: Brush = Brush.horizontalGradient(
+        listOf(AppTheme.colors.primaryAccent, AppTheme.colors.secondaryAccent)
+    ),
+    containerColor: Color = AppTheme.colors.primaryAccent.copy(
+        alpha = if (AppTheme.colors.isDark) 0.18f else 0.12f
+    ),
+    contentColor: Color = AppTheme.colors.textPrimary,
     testTag: String = "outlined_animated_button"
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -71,10 +73,10 @@ fun OutlinedAnimatedButton(
             )
             .testTag(testTag),
         shape = shape,
-        color = if (enabled) containerColor else Color(0x11FFFFFF),
+        color = if (enabled) containerColor else Color(0x11888888),
         border = BorderStroke(
             width = 1.5.dp,
-            brush = if (enabled) borderGradient else Brush.linearGradient(listOf(Color(0x33FFFFFF), Color(0x33FFFFFF)))
+            brush = if (enabled) borderGradient else Brush.linearGradient(listOf(Color(0x33888888), Color(0x33888888)))
         )
     ) {
         Row(
@@ -82,10 +84,10 @@ fun OutlinedAnimatedButton(
                 .defaultMinSize(minHeight = 48.dp)
                 .padding(PaddingValues(horizontal = 20.dp, vertical = 12.dp)),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+            horizontalArrangement = Arrangement.Center
         ) {
             if (icon != null) {
-                androidx.compose.material3.Icon(
+                Icon(
                     imageVector = icon,
                     contentDescription = null,
                     tint = if (enabled) contentColor else contentColor.copy(alpha = 0.4f),

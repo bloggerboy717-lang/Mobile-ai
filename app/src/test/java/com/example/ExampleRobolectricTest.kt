@@ -32,4 +32,103 @@ class ExampleRobolectricTest {
     assertTrue(masked.endsWith("XYZW"))
     assertTrue(masked.contains("••••••••"))
   }
+
+  @Test
+  fun `verify official gemini voice models exist for settings`() {
+    val personas = com.example.persona.ALL_PERSONAS
+    val names = personas.map { it.name }
+    assertTrue(names.any { it.contains("Gemini Live") })
+    assertTrue(names.any { it.contains("Aoede") })
+    assertTrue(names.any { it.contains("Charon") })
+    assertTrue(names.any { it.contains("Puck") })
+    assertTrue(names.any { it.contains("Fenrir") })
+    assertTrue(names.any { it.contains("Kore") })
+  }
+
+  @Test
+  fun `verify sos trigger detection and cancellation`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val emergencyStorage = com.example.data.EmergencyStorage(context)
+    val profileStorage = com.example.data.StudentProfileStorage(context)
+    val sosManager = com.example.sos.EmergencySosManager(context, emergencyStorage, profileStorage) {}
+
+    assertTrue(sosManager.isSosTrigger("बचाओ बचाओ बचाओ"))
+    assertTrue(sosManager.isSosTrigger("bachao bachao bachao"))
+    assertTrue(sosManager.isSosTrigger("मुझे बचाओ बचाओ बचाओ जल्दी"))
+    assertTrue(sosManager.isSosCancelTrigger("मैं सुरक्षित हूँ"))
+    assertTrue(sosManager.isSosCancelTrigger("I am safe now"))
+  }
+
+  @Test
+  fun `verify student profile memory and emergency contacts storage`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val profileStorage = com.example.data.StudentProfileStorage(context)
+    val profile = com.example.data.StudentProfile(
+      name = "Aman",
+      gradeOrCourse = "Class 12th PCM",
+      goal = "IIT JEE Advanced Rank < 500",
+      weakSubject = "Physical Chemistry",
+      isConfigured = true
+    )
+    profileStorage.saveProfile(profile)
+    val retrieved = profileStorage.getProfile()
+    assertEquals("Aman", retrieved.name)
+    assertEquals("Class 12th PCM", retrieved.gradeOrCourse)
+    assertEquals("IIT JEE Advanced Rank < 500", retrieved.goal)
+    assertEquals("Physical Chemistry", retrieved.weakSubject)
+
+    val emergencyStorage = com.example.data.EmergencyStorage(context)
+    emergencyStorage.saveContact(1, "Father", "9876543210")
+    emergencyStorage.saveContact(2, "Mother", "9876543211")
+    emergencyStorage.saveContact(3, "Friend", "9876543212")
+    val contacts = emergencyStorage.getContacts()
+    assertEquals(3, contacts.size)
+    assertEquals("Father", contacts[0].name)
+    assertEquals("9876543210", contacts[0].phoneNumber)
+  }
+
+  @Test
+  fun `verify code builder request detection`() {
+    assertTrue(com.example.codebuilder.CodeBuilderEngine.isCodeBuildRequest("मेरे लिए एक पोर्टफोलियो वेबसाइट बनाओ"))
+    assertTrue(com.example.codebuilder.CodeBuilderEngine.isCodeBuildRequest("create a calculator app in html and javascript"))
+    assertTrue(com.example.codebuilder.CodeBuilderEngine.isCodeBuildRequest("make a responsive landing page website"))
+  }
+
+  @Test
+  fun `verify theme presets and custom hex resolution`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val themeStorage = com.example.data.ThemeStorage(context)
+    assertEquals(com.example.data.ThemePreset.SUNSET, themeStorage.getThemePreset())
+
+    themeStorage.saveThemePreset(com.example.data.ThemePreset.RED)
+    assertEquals(com.example.data.ThemePreset.RED, themeStorage.getThemePreset())
+
+    themeStorage.saveCustomHex("#123456")
+    assertEquals("#123456", themeStorage.getCustomHex())
+
+    val sunsetColors = com.example.ui.theme.resolveThemeColors(com.example.data.ThemePreset.SUNSET, "#FFF4EC")
+    assertEquals(com.example.data.ThemePreset.SUNSET, sunsetColors.preset)
+    assertEquals(false, sunsetColors.isDark)
+
+    val redColors = com.example.ui.theme.resolveThemeColors(com.example.data.ThemePreset.RED, "#8E6B74")
+    assertEquals(com.example.data.ThemePreset.RED, redColors.preset)
+    assertEquals(true, redColors.isDark)
+
+    val customColors = com.example.ui.theme.createCustomThemeColors("#FFFFFF")
+    assertEquals(false, customColors.isDark)
+  }
+
+  @Test
+  fun `verify sub-settings sections exist and have localized titles`() {
+    val sections = com.example.ui.screens.settings.SettingsSection.values()
+    assertEquals(5, sections.size)
+    val hindiTitles = sections.map { it.hindiTitle }
+    assertTrue(hindiTitles.contains("ओआरबी और थीम सेटिंग"))
+    assertTrue(hindiTitles.contains("स्टूडेंट सेटिंग"))
+    assertTrue(hindiTitles.contains("वॉइस और ऑडियो सेटिंग"))
+    assertTrue(hindiTitles.contains("इमरजेंसी व SOS सेटिंग"))
+    assertTrue(hindiTitles.contains("AI मॉडल व सिस्टम सेटिंग"))
+  }
 }
+
+

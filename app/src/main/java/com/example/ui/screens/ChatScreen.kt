@@ -23,6 +23,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
@@ -32,6 +34,9 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Web
+import com.example.ui.components.CodeRunningDialog
+import com.example.ui.components.ProjectPreviewDialog
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -92,10 +97,15 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val currentPersona by viewModel.currentPersona.collectAsState()
     val pendingConfirmation by viewModel.pendingConfirmationAction.collectAsState()
+    val isBuildingCode by viewModel.isBuildingCode.collectAsState()
+    val codeBuildStep by viewModel.codeBuildStep.collectAsState()
+    val codeBuildStatusText by viewModel.codeBuildStatusText.collectAsState()
+    val activeProject by viewModel.activeGeneratedProject.collectAsState()
+    val studentProfile by viewModel.studentProfile.collectAsState()
+    val themeColors by viewModel.themeColors.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
     var showClearDialog by remember { mutableStateOf(false) }
-    var showPersonaDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(chatMessages.size, assistantState) {
         if (chatMessages.isNotEmpty()) {
@@ -106,12 +116,12 @@ fun ChatScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(SpaceDark)
+            .background(themeColors.background)
     ) {
         // Chat Header
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = CardDark,
+            color = themeColors.cardBackground,
             shadowElevation = 4.dp
         ) {
             Row(
@@ -145,7 +155,7 @@ fun ChatScreen(
                             color = TextPrimary
                         )
                         Text(
-                            text = "${currentPersona.gender.name.lowercase().replaceFirstChar { it.uppercase() }} • ${currentPersona.subtitle}",
+                            text = "Google Gemini Intelligence",
                             fontSize = 10.sp,
                             color = CyberSky
                         )
@@ -153,18 +163,6 @@ fun ChatScreen(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(CardElevatedDark)
-                            .clickable { showPersonaDialog = true }
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    ) {
-                        Text(text = "Change", fontSize = 11.sp, color = CyberSky, fontWeight = FontWeight.Bold)
-                    }
-
-                    Spacer(modifier = Modifier.width(6.dp))
-
                     if (assistantState == AssistantState.SPEAKING) {
                         IconButton(
                             onClick = { viewModel.stopSpeaking() },
@@ -172,6 +170,7 @@ fun ChatScreen(
                         ) {
                             Icon(imageVector = Icons.Default.Stop, contentDescription = "Stop", tint = MagentaGlow, modifier = Modifier.size(20.dp))
                         }
+                        Spacer(modifier = Modifier.width(4.dp))
                     }
 
                     IconButton(
@@ -216,6 +215,7 @@ fun ChatScreen(
                     message = message,
                     persona = currentPersona,
                     isCurrentlySpeaking = assistantState == AssistantState.SPEAKING,
+                    themeColors = themeColors,
                     onRepeat = { viewModel.repeatMessage(message) },
                     onCopy = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -283,10 +283,40 @@ fun ChatScreen(
             }
         }
 
+        // Suggestion Chips for Students
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val suggestions = listOf(
+                "पोर्टफोलियो वेबसाइट बनाओ",
+                "Class 10 Physics: Ohm's Law समझाओ",
+                "Maths Doubt: Quadratic formula ट्रिक",
+                "मेरा 7 दिनों का Study Planner बनाओ",
+                "Pomodoro focus timer",
+                "बचाओ बचाओ बचाओ (Test SOS)"
+            )
+            suggestions.forEach { text ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(themeColors.cardBackground)
+                        .border(1.dp, themeColors.cardBorder, RoundedCornerShape(16.dp))
+                        .clickable { viewModel.submitTypedPrompt(text) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(text = text, fontSize = 11.sp, color = themeColors.textSecondary)
+                }
+            }
+        }
+
         // Bottom Input Bar
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = CardDark,
+            color = themeColors.cardBackground,
             shadowElevation = 8.dp
         ) {
             Row(
@@ -300,12 +330,12 @@ fun ChatScreen(
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(if (assistantState == AssistantState.LISTENING) CyberSky else CardElevatedDark)
+                        .background(if (assistantState == AssistantState.LISTENING) themeColors.primaryAccent else themeColors.cardElevated)
                 ) {
                     Icon(
                         imageVector = if (assistantState == AssistantState.SPEAKING) Icons.Default.Stop else Icons.Default.Mic,
                         contentDescription = "Voice Input",
-                        tint = if (assistantState == AssistantState.LISTENING) SpaceDark else CyberSky,
+                        tint = if (assistantState == AssistantState.LISTENING) Color.White else themeColors.primaryAccent,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -316,15 +346,17 @@ fun ChatScreen(
                     value = inputText,
                     onValueChange = { inputText = it },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("Ask ${currentPersona.name} or type a command...", color = TextMuted, fontSize = 13.sp) },
+                    placeholder = { Text("Ask ALIC-AI (Jarvis) or type a command...", color = themeColors.textMuted, fontSize = 13.sp) },
                     maxLines = 3,
                     shape = RoundedCornerShape(20.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CyberSky,
-                        unfocusedBorderColor = CardBorderDark,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        cursorColor = CyberSky
+                        focusedBorderColor = themeColors.primaryAccent,
+                        unfocusedBorderColor = themeColors.cardBorder,
+                        focusedTextColor = themeColors.textPrimary,
+                        unfocusedTextColor = themeColors.textPrimary,
+                        focusedContainerColor = themeColors.cardBackground,
+                        unfocusedContainerColor = themeColors.cardBackground,
+                        cursorColor = themeColors.primaryAccent
                     )
                 )
 
@@ -341,12 +373,12 @@ fun ChatScreen(
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(if (inputText.isNotBlank()) CyberSky else CardElevatedDark)
+                        .background(if (inputText.isNotBlank()) themeColors.primaryAccent else themeColors.cardElevated)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Send,
                         contentDescription = "Send",
-                        tint = if (inputText.isNotBlank()) SpaceDark else TextMuted,
+                        tint = if (inputText.isNotBlank()) Color.White else themeColors.textMuted,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -354,57 +386,20 @@ fun ChatScreen(
         }
     }
 
-    // Persona Selector Dialog
-    if (showPersonaDialog) {
-        AlertDialog(
-            onDismissRequest = { showPersonaDialog = false },
-            title = { Text(text = "Switch AI Persona", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ALL_PERSONAS.forEach { persona ->
-                        val isSelected = persona.id == currentPersona.id
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    viewModel.switchPersona(persona)
-                                    showPersonaDialog = false
-                                },
-                            color = if (isSelected) Color(0x3338BDF8) else CardElevatedDark,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyberSky else CardBorderDark)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(Brush.radialGradient(listOf(persona.primaryColor, persona.secondaryColor))),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(text = persona.avatarLetter, color = SpaceDark, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(text = persona.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                    Text(text = "${persona.gender.name.lowercase().replaceFirstChar { it.uppercase() }} • ${persona.subtitle}", fontSize = 10.sp, color = TextMuted)
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showPersonaDialog = false }) {
-                    Text("Close", color = TextSecondary)
-                }
-            },
-            containerColor = CardDark,
-            shape = RoundedCornerShape(18.dp)
+    // Code Builder Running Progression Popup (Feature 16)
+    if (isBuildingCode) {
+        CodeRunningDialog(
+            currentStep = codeBuildStep,
+            statusDetail = codeBuildStatusText,
+            onDismiss = {}
+        )
+    }
+
+    // In-App Live Preview Dialog (Feature 16)
+    if (activeProject != null) {
+        ProjectPreviewDialog(
+            project = activeProject!!,
+            onDismiss = { viewModel.dismissProjectPreview() }
         )
     }
 
@@ -413,7 +408,7 @@ fun ChatScreen(
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
             title = { Text("Clear Conversation?", color = TextPrimary) },
-            text = { Text("This will reset your chat history with ${currentPersona.name}.", color = TextSecondary) },
+            text = { Text("This will reset your chat history with ALIC-AI.", color = TextSecondary) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -440,6 +435,7 @@ fun ChatBubble(
     message: ChatMessage,
     persona: Persona,
     isCurrentlySpeaking: Boolean,
+    themeColors: com.example.ui.theme.ThemeColors,
     onRepeat: () -> Unit,
     onCopy: () -> Unit,
     modifier: Modifier = Modifier
@@ -462,7 +458,7 @@ fun ChatBubble(
             ) {
                 Text(
                     text = persona.avatarLetter,
-                    color = SpaceDark,
+                    color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
@@ -486,22 +482,22 @@ fun ChatBubble(
                     ),
                 color = when {
                     message.isError -> Color(0x33EF4444)
-                    isUser -> Color(0x3338BDF8)
-                    else -> CardElevatedDark
+                    isUser -> themeColors.primaryAccent.copy(alpha = if (themeColors.isDark) 0.22f else 0.14f)
+                    else -> themeColors.cardElevated
                 },
                 border = androidx.compose.foundation.BorderStroke(
                     1.dp,
                     when {
                         message.isError -> ErrorRed.copy(alpha = 0.6f)
-                        isUser -> CyberSky.copy(alpha = 0.5f)
-                        else -> CardBorderDark
+                        isUser -> themeColors.primaryAccent.copy(alpha = 0.5f)
+                        else -> themeColors.cardBorder
                     }
                 )
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
                         text = message.text,
-                        color = if (message.isError) ErrorRed else TextPrimary,
+                        color = if (message.isError) ErrorRed else themeColors.textPrimary,
                         fontSize = 14.sp,
                         lineHeight = 19.sp
                     )
@@ -516,7 +512,7 @@ fun ChatBubble(
                         Text(
                             text = formattedTime,
                             fontSize = 10.sp,
-                            color = TextMuted
+                            color = themeColors.textMuted
                         )
 
                         if (!isUser && !message.isError) {
@@ -525,14 +521,14 @@ fun ChatBubble(
                                     onClick = onRepeat,
                                     modifier = Modifier.size(24.dp)
                                 ) {
-                                    Icon(imageVector = Icons.Default.VolumeUp, contentDescription = "Repeat", tint = CyberSky, modifier = Modifier.size(15.dp))
+                                    Icon(imageVector = Icons.Default.VolumeUp, contentDescription = "Repeat", tint = themeColors.primaryAccent, modifier = Modifier.size(15.dp))
                                 }
                                 Spacer(modifier = Modifier.width(4.dp))
                                 IconButton(
                                     onClick = onCopy,
                                     modifier = Modifier.size(24.dp)
                                 ) {
-                                    Icon(imageVector = Icons.Default.ContentCopy, contentDescription = "Copy", tint = TextSecondary, modifier = Modifier.size(15.dp))
+                                    Icon(imageVector = Icons.Default.ContentCopy, contentDescription = "Copy", tint = themeColors.textSecondary, modifier = Modifier.size(15.dp))
                                 }
                             }
                         }

@@ -219,6 +219,151 @@ class GeminiApiService(
     }
 
     /**
+     * Generates multimodal human-like audio response directly from Gemini using official prebuilt voice models
+     * (Aoede, Charon, Puck, Fenrir, Kore) without relying on robotic phone TTS.
+     */
+    suspend fun generateAssistantVoiceResponse(
+        apiKey: String,
+        modelId: String,
+        userPrompt: String,
+        voiceName: String = "Aoede",
+        systemInstructions: String = DEFAULT_SYSTEM_PROMPT,
+        recentHistory: List<ChatMessage> = emptyList()
+    ): Result<GeminiVoiceResponse> = withContext(Dispatchers.IO) {
+        val trimmedKey = apiKey.trim()
+        if (trimmedKey.isEmpty()) {
+            return@withContext Result.failure(IllegalStateException("Gemini API key is not configured."))
+        }
+
+        val url = "$BASE_URL/$modelId:generateContent?key=$trimmedKey"
+
+        // First attempt multimodal voice generation with Gemini
+        try {
+            val jsonPayload = JSONObject().apply {
+                put("systemInstruction", JSONObject().apply {
+                    put("parts", JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("text", systemInstructions)
+                        })
+                    })
+                })
+
+                val contentsArray = JSONArray()
+                val contextualHistory = recentHistory.takeLast(6)
+                for (msg in contextualHistory) {
+                    if (msg.isError) continue
+                    val role = if (msg.sender == MessageSender.USER) "user" else "model"
+                    contentsArray.put(JSONObject().apply {
+                        put("role", role)
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("text", msg.text)
+                            })
+                        })
+                    })
+                }
+
+                contentsArray.put(JSONObject().apply {
+                    put("role", "user")
+                    put("parts", JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("text", userPrompt)
+                        })
+                    })
+                })
+                put("contents", contentsArray)
+
+                put("generationConfig", JSONObject().apply {
+                    put("temperature", 0.7)
+                    put("maxOutputTokens", 1000)
+                    put("responseModalities", JSONArray().apply {
+                        put("TEXT")
+                        put("AUDIO")
+                    })
+                    put("speechConfig", JSONObject().apply {
+                        put("voiceConfig", JSONObject().apply {
+                            put("prebuiltVoiceConfig", JSONObject().apply {
+                                put("voiceName", voiceName)
+                            })
+                        })
+                    })
+                })
+            }
+
+            val request = Request.Builder()
+                .url(url)
+                .post(jsonPayload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .header("Content-Type", "application/json")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val bodyString = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    val responseJson = JSONObject(bodyString)
+                    val candidates = responseJson.optJSONArray("candidates")
+                    if (candidates != null && candidates.length() > 0) {
+                        val firstCandidate = candidates.getJSONObject(0)
+                        val content = firstCandidate.optJSONObject("content")
+                        val parts = content?.optJSONArray("parts")
+                        if (parts != null) {
+                            var text = ""
+                            var audioData: String? = null
+                            var mimeType = "audio/wav"
+                            for (i in 0 until parts.length()) {
+                                val part = parts.getJSONObject(i)
+                                if (part.has("text")) {
+                                    text += part.optString("text", "")
+                                }
+                                if (part.has("inlineData")) {
+                                    val inline = part.getJSONObject("inlineData")
+                                    audioData = inline.optString("data", null)
+                                    mimeType = inline.optString("mimeType", "audio/wav")
+                                }
+                            }
+                            if (text.isNotBlank() || audioData != null) {
+                                return@withContext Result.success(
+                                    GeminiVoiceResponse(
+                                        text = cleanTextForSpeech(text),
+                                        audioBase64 = audioData,
+                                        mimeType = mimeType
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Multimodal audio generation fallback to text", e)
+        }
+
+        // Seamless fallback to clean text if direct audio output is unsupported on current model/key
+        val textFallback = generateAssistantResponse(
+            apiKey = apiKey,
+            modelId = modelId,
+            userPrompt = userPrompt,
+            systemInstructions = systemInstructions,
+            recentHistory = recentHistory
+        )
+        textFallback.map { GeminiVoiceResponse(text = it, audioBase64 = null) }
+    }
+
+    suspend fun generateRawContent(
+        apiKey: String,
+        modelId: String,
+        systemPrompt: String,
+        userPrompt: String
+    ): String = withContext(Dispatchers.IO) {
+        val res = generateAssistantResponse(
+            apiKey = apiKey,
+            modelId = modelId,
+            userPrompt = userPrompt,
+            systemInstructions = systemPrompt
+        )
+        res.getOrThrow()
+    }
+
+    /**
      * Multimodal Screen Understanding: sends captured screenshot to Gemini Vision
      */
     suspend fun analyzeScreenVision(

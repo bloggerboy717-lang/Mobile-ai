@@ -11,6 +11,7 @@ import com.example.data.VoicePersona
 import com.example.data.VoiceSettings
 import com.example.persona.Persona
 import com.example.persona.PersonaGender
+import com.example.persona.PersonaId
 import java.util.Locale
 
 class TtsManager(
@@ -39,7 +40,27 @@ class TtsManager(
         private set
 
     init {
-        tts = TextToSpeech(context.applicationContext, this)
+        initEngine()
+    }
+
+    private fun initEngine() {
+        val googleEngine = "com.google.android.tts"
+        try {
+            val dummy = TextToSpeech(context.applicationContext, null)
+            val installedEngines = dummy.engines?.map { it.name } ?: emptyList()
+            dummy.shutdown()
+
+            if (installedEngines.contains(googleEngine)) {
+                Log.i(TAG, "Initializing with official Google Speech Services engine ($googleEngine) for natural human voice")
+                tts = TextToSpeech(context.applicationContext, this, googleEngine)
+            } else {
+                Log.i(TAG, "Google Speech Services not directly available, initializing with system default engine")
+                tts = TextToSpeech(context.applicationContext, this)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to query TTS engines, fallback to default", e)
+            tts = TextToSpeech(context.applicationContext, this)
+        }
     }
 
     override fun onInit(status: Int) {
@@ -86,9 +107,12 @@ class TtsManager(
             return
         }
 
-        // Clean text of markdown characters before speaking for non-robotic audio
+        // Clean text of markdown characters, code blocks, URLs, and bullet points before speaking for non-robotic audio
         val cleanSpeech = text
-            .replace(Regex("[*#_`~>|\\[\\]]"), "")
+            .replace(Regex("```[\\s\\S]*?```"), " ")
+            .replace(Regex("`[^`]*`"), " ")
+            .replace(Regex("https?://\\S+"), " ")
+            .replace(Regex("[*#_~>|\\[\\]()•]"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
 
@@ -96,20 +120,20 @@ class TtsManager(
 
         // Detect if text contains Hindi / Devanagari script
         val isHindi = cleanSpeech.any { it.code in 0x0900..0x097F }
-        if (isHindi) {
-            runCatching {
+        runCatching {
+            if (isHindi) {
                 tts?.language = Locale("hi", "IN")
-                selectBestNaturalVoice(PersonaGender.NEUTRAL, "hi")
+            } else {
+                tts?.language = Locale.US
             }
-        } else {
-            runCatching {
-                applyVoiceSettings(currentSettings)
-            }
+            applyVoiceSettings(currentSettings, isHindi)
         }
 
         val queueMode = if (flush) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
         val params = Bundle().apply {
             putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID)
+            // Enable high-quality network/neural synthesis to remove robotic tone
+            putString(TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS, "true")
         }
 
         tts?.speak(cleanSpeech, queueMode, params, UTTERANCE_ID)
@@ -127,10 +151,13 @@ class TtsManager(
     }
 
     fun applyPersonaVoice(persona: Persona) {
-        val mappedPersona = when (persona.gender) {
-            PersonaGender.FEMALE -> VoicePersona.FEMALE
-            PersonaGender.MALE -> VoicePersona.MALE
-            PersonaGender.NEUTRAL -> VoicePersona.NEUTRAL
+        val mappedPersona = when (persona.id) {
+            PersonaId.GEMINI -> VoicePersona.GEMINI_LIVE
+            PersonaId.AOEDE -> VoicePersona.AOEDE
+            PersonaId.CHARON -> VoicePersona.CHARON
+            PersonaId.PUCK -> VoicePersona.PUCK
+            PersonaId.FENRIR -> VoicePersona.FENRIR
+            PersonaId.KORE -> VoicePersona.KORE
         }
         val newSettings = currentSettings.copy(
             persona = mappedPersona,
@@ -146,14 +173,22 @@ class TtsManager(
         applyVoiceSettings(newSettings)
     }
 
-    fun testVoice(sampleText: String = "नमस्ते रोहित! मैं हूँ आपका Gemini AI असिस्टेंट। मेरी आवाज़ पूरी तरह नेचुरल और बिना किसी रोबोटिक टोन के है।") {
+    fun testVoice(sampleText: String? = null) {
         if (!isInitialized) return
         stop()
         val tempMute = currentSettings.muteSpokenReplies
         if (tempMute) {
             applyVoiceSettings(currentSettings.copy(muteSpokenReplies = false))
         }
-        speak(sampleText, flush = true)
+        val textToSpeak = sampleText ?: when (currentSettings.persona) {
+            VoicePersona.AOEDE -> "नमस्ते! मैं Aoede (आरोन) हूँ, Google का नेचुरल वॉइस मॉडल। मेरी आवाज़ बिना किसी रोबोटिक टोन के बिल्कुल साफ़ और इंसानी अंदाज़ में है।"
+            VoicePersona.CHARON -> "नमस्ते! मैं Charon (कैरन) हूँ, Google का डीप और शांत वॉइस मॉडल। मैं आपकी पढ़ाई और सभी सवालों में मदद के लिए तैयार हूँ।"
+            VoicePersona.PUCK -> "अरे वाह! मैं Puck हूँ! फुल एनर्जी और नए अंदाज़ के साथ आपके हर डाउट को सॉल्व करेंगे!"
+            VoicePersona.FENRIR -> "नमस्ते! मैं Fenrir हूँ। Google का बैलेंस्ड, वार्म और स्पष्ट वॉइस मॉडल। पढ़ाई और कोडिंग में हम साथ काम करेंगे।"
+            VoicePersona.KORE -> "नमस्ते! मैं Kore हूँ। शांत, कोमल और स्पष्ट आवाज़ में आपकी सहायता के लिए सदैव उपलब्ध हूँ।"
+            else -> "नमस्ते! मैं ALIC-AI हूँ, आपका स्मार्ट स्टूडेंट पर्सनल असिस्टेंट। मेरी आवाज़ अब पूरी तरह नेचुरल और बिना किसी रोबोटिक टोन के है।"
+        }
+        speak(textToSpeak, flush = true)
     }
 
     /**
@@ -225,11 +260,11 @@ class TtsManager(
         }
     }
 
-    private fun applyVoiceSettings(settings: VoiceSettings) {
+    fun applyVoiceSettings(settings: VoiceSettings, isHindi: Boolean = false) {
         if (!isInitialized) return
 
-        tts?.setPitch(settings.pitch)
-        tts?.setSpeechRate(settings.speechRate)
+        tts?.setPitch(settings.pitch.coerceIn(0.6f, 1.6f))
+        tts?.setSpeechRate(settings.speechRate.coerceIn(0.6f, 1.6f))
 
         val allVoices = getAvailableVoices()
         if (allVoices.isEmpty()) return
@@ -243,22 +278,41 @@ class TtsManager(
             }
         }
 
-        // Prefer high quality / natural neural voices
+        val langCode = if (isHindi) "hi" else "en"
+        val langVoices = allVoices.filter { it.locale.language.startsWith(langCode, ignoreCase = true) }
+        val pool = if (langVoices.isNotEmpty()) langVoices else allVoices
+
+        // Prefer high quality / natural neural voices matching Google Voice models
         val targetVoice = when (settings.persona) {
-            VoicePersona.NEUTRAL -> {
-                allVoices.firstOrNull { isNeuralOrHighQualityVoice(it) && !isFemaleVoice(it) && !isMaleVoice(it) }
-                    ?: allVoices.firstOrNull { isNeuralOrHighQualityVoice(it) }
-                    ?: allVoices.firstOrNull()
+            VoicePersona.GEMINI_LIVE, VoicePersona.NEUTRAL -> {
+                pool.firstOrNull { isNeuralOrHighQualityVoice(it) && !isFemaleVoice(it) && !isMaleVoice(it) }
+                    ?: pool.firstOrNull { isNeuralOrHighQualityVoice(it) }
+                    ?: pool.firstOrNull()
             }
-            VoicePersona.FEMALE -> {
-                allVoices.firstOrNull { isFemaleVoice(it) && isNeuralOrHighQualityVoice(it) }
-                    ?: allVoices.firstOrNull { isFemaleVoice(it) }
-                    ?: allVoices.firstOrNull()
+            VoicePersona.AOEDE, VoicePersona.FEMALE -> {
+                pool.firstOrNull { isFemaleVoice(it) && isNeuralOrHighQualityVoice(it) }
+                    ?: pool.firstOrNull { isFemaleVoice(it) }
+                    ?: pool.firstOrNull()
             }
-            VoicePersona.MALE -> {
-                allVoices.firstOrNull { isMaleVoice(it) && isNeuralOrHighQualityVoice(it) }
-                    ?: allVoices.firstOrNull { isMaleVoice(it) }
-                    ?: allVoices.firstOrNull()
+            VoicePersona.CHARON, VoicePersona.MALE -> {
+                pool.firstOrNull { isMaleVoice(it) && isNeuralOrHighQualityVoice(it) }
+                    ?: pool.firstOrNull { isMaleVoice(it) }
+                    ?: pool.firstOrNull()
+            }
+            VoicePersona.PUCK -> {
+                pool.firstOrNull { isMaleVoice(it) && isNeuralOrHighQualityVoice(it) }
+                    ?: pool.firstOrNull { isNeuralOrHighQualityVoice(it) }
+                    ?: pool.firstOrNull()
+            }
+            VoicePersona.FENRIR -> {
+                pool.firstOrNull { isMaleVoice(it) && isNeuralOrHighQualityVoice(it) }
+                    ?: pool.firstOrNull { isMaleVoice(it) }
+                    ?: pool.firstOrNull()
+            }
+            VoicePersona.KORE -> {
+                pool.firstOrNull { isFemaleVoice(it) && isNeuralOrHighQualityVoice(it) }
+                    ?: pool.firstOrNull { isFemaleVoice(it) }
+                    ?: pool.firstOrNull()
             }
         }
 

@@ -52,7 +52,12 @@ val AVAILABLE_GEMINI_MODELS = listOf(
     GeminiModelOption(
         id = "gemini-2.5-flash",
         displayName = "Gemini 2.5 Flash (Recommended)",
-        description = "High intelligence, fastest response time, and low latency."
+        description = "Google's ultra-fast model with low latency, ideal for voice conversations."
+    ),
+    GeminiModelOption(
+        id = "gemini-2.5-pro",
+        displayName = "Gemini 2.5 Pro",
+        description = "Google's most capable model for complex reasoning and multimodal tasks."
     ),
     GeminiModelOption(
         id = "gemini-2.0-flash",
@@ -69,7 +74,13 @@ val AVAILABLE_GEMINI_MODELS = listOf(
 enum class VoicePersona {
     NEUTRAL,
     MALE,
-    FEMALE
+    FEMALE,
+    GEMINI_LIVE,
+    AOEDE,
+    CHARON,
+    PUCK,
+    FENRIR,
+    KORE
 }
 
 data class VoiceSettings(
@@ -78,4 +89,10 @@ data class VoiceSettings(
     val speechRate: Float = 1.0f,
     val muteSpokenReplies: Boolean = false,
     val selectedVoiceName: String? = null
+)
+
+data class GeminiVoiceResponse(
+    val text: String,
+    val audioBase64: String? = null,
+    val mimeType: String = "audio/wav"
 )

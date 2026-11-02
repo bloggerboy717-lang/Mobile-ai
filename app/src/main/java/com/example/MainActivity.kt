@@ -15,15 +15,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -42,17 +38,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.ui.components.ApiKeySetupDialog
-import com.example.ui.screens.AppControlScreen
 import com.example.ui.screens.ChatScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.PermissionsScreen
 import com.example.ui.screens.SettingsScreen
-import com.example.ui.screens.VisionScreen
 import com.example.ui.theme.CardBorderDark
 import com.example.ui.theme.CardDark
 import com.example.ui.theme.CyberSky
@@ -71,7 +66,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            MyApplicationTheme {
+            val themeColors by viewModel.themeColors.collectAsState()
+            MyApplicationTheme(themeColors = themeColors) {
                 AlicApp(viewModel = viewModel)
             }
         }
@@ -80,6 +76,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AlicApp(viewModel: AlicViewModel) {
+    val themeColors by viewModel.themeColors.collectAsState()
     val currentTab by viewModel.currentTab.collectAsState()
     val assistantState by viewModel.assistantState.collectAsState()
     val connectionStatus by viewModel.connectionStatus.collectAsState()
@@ -114,18 +111,18 @@ fun AlicApp(viewModel: AlicViewModel) {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = SpaceDark,
+        containerColor = themeColors.background,
         snackbarHost = {
             SnackbarHost(snackbarHostState) { snackbarData ->
                 Snackbar(
                     snackbarData = snackbarData,
-                    containerColor = CardDark,
-                    contentColor = TextPrimary,
-                    actionColor = CyberSky,
+                    containerColor = themeColors.cardBackground,
+                    contentColor = themeColors.textPrimary,
+                    actionColor = themeColors.primaryAccent,
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .padding(16.dp)
-                        .border(1.dp, CardBorderDark, RoundedCornerShape(12.dp))
+                        .border(1.dp, themeColors.cardBorder, RoundedCornerShape(12.dp))
                 )
             }
         },
@@ -133,6 +130,7 @@ fun AlicApp(viewModel: AlicViewModel) {
             if (!showPermissionsCenter) {
                 AlicBottomNavigation(
                     currentTab = currentTab,
+                    themeColors = themeColors,
                     onTabSelected = { tab ->
                         if (tab != currentTab) {
                             viewModel.stopSpeaking()
@@ -162,20 +160,14 @@ fun AlicApp(viewModel: AlicViewModel) {
                             hasConfiguredKey = hasConfiguredKey,
                             chatMessages = chatMessages,
                             onNavigateToChat = { viewModel.switchTab(1) },
-                            onNavigateToSettings = { viewModel.switchTab(4) }
+                            onNavigateToSettings = { viewModel.switchTab(2) }
                         )
                         1 -> ChatScreen(
                             viewModel = viewModel,
                             chatMessages = chatMessages,
                             assistantState = assistantState
                         )
-                        2 -> VisionScreen(
-                            viewModel = viewModel
-                        )
-                        3 -> AppControlScreen(
-                            viewModel = viewModel
-                        )
-                        4 -> SettingsScreen(
+                        2 -> SettingsScreen(
                             viewModel = viewModel,
                             hasConfiguredKey = hasConfiguredKey,
                             maskedApiKey = maskedApiKey,
@@ -200,7 +192,7 @@ fun AlicApp(viewModel: AlicViewModel) {
                     onDismiss = {
                         viewModel.dismissSetupDialog()
                     },
-                    canDismiss = hasConfiguredKey
+                    canDismiss = true
                 )
             }
         }
@@ -210,10 +202,11 @@ fun AlicApp(viewModel: AlicViewModel) {
 @Composable
 fun AlicBottomNavigation(
     currentTab: Int,
+    themeColors: com.example.ui.theme.ThemeColors,
     onTabSelected: (Int) -> Unit
 ) {
     NavigationBar(
-        containerColor = CardDark,
+        containerColor = themeColors.cardBackground,
         tonalElevation = 8.dp,
         modifier = Modifier.testTag("alic_bottom_navigation")
     ) {
@@ -230,11 +223,11 @@ fun AlicBottomNavigation(
             },
             label = { Text("Home", fontSize = 10.sp) },
             colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = SpaceDark,
-                selectedTextColor = CyberSky,
-                indicatorColor = CyberSky,
-                unselectedIconColor = TextSecondary,
-                unselectedTextColor = TextSecondary
+                selectedIconColor = if (themeColors.isDark) themeColors.cardBackground else Color.White,
+                selectedTextColor = themeColors.primaryAccent,
+                indicatorColor = themeColors.primaryAccent,
+                unselectedIconColor = themeColors.textSecondary,
+                unselectedTextColor = themeColors.textSecondary
             )
         )
 
@@ -251,74 +244,32 @@ fun AlicBottomNavigation(
             },
             label = { Text("Chat", fontSize = 10.sp) },
             colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = SpaceDark,
-                selectedTextColor = NeonPurple,
-                indicatorColor = NeonPurple,
-                unselectedIconColor = TextSecondary,
-                unselectedTextColor = TextSecondary
+                selectedIconColor = if (themeColors.isDark) themeColors.cardBackground else Color.White,
+                selectedTextColor = themeColors.secondaryAccent,
+                indicatorColor = themeColors.secondaryAccent,
+                unselectedIconColor = themeColors.textSecondary,
+                unselectedTextColor = themeColors.textSecondary
             )
         )
 
-        // Tab 2: Vision
+        // Tab 2: Settings
         NavigationBarItem(
             selected = currentTab == 2,
             onClick = { onTabSelected(2) },
             icon = {
                 Icon(
-                    imageVector = if (currentTab == 2) Icons.Filled.Visibility else Icons.Outlined.Visibility,
-                    contentDescription = "Vision",
-                    modifier = Modifier.size(20.dp)
-                )
-            },
-            label = { Text("Vision", fontSize = 10.sp) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = SpaceDark,
-                selectedTextColor = CyberSky,
-                indicatorColor = CyberSky,
-                unselectedIconColor = TextSecondary,
-                unselectedTextColor = TextSecondary
-            )
-        )
-
-        // Tab 3: Apps / Control
-        NavigationBarItem(
-            selected = currentTab == 3,
-            onClick = { onTabSelected(3) },
-            icon = {
-                Icon(
-                    imageVector = if (currentTab == 3) Icons.Filled.GridView else Icons.Outlined.GridView,
-                    contentDescription = "Apps",
-                    modifier = Modifier.size(20.dp)
-                )
-            },
-            label = { Text("Apps", fontSize = 10.sp) },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = SpaceDark,
-                selectedTextColor = CyberSky,
-                indicatorColor = CyberSky,
-                unselectedIconColor = TextSecondary,
-                unselectedTextColor = TextSecondary
-            )
-        )
-
-        // Tab 4: Settings
-        NavigationBarItem(
-            selected = currentTab == 4,
-            onClick = { onTabSelected(4) },
-            icon = {
-                Icon(
-                    imageVector = if (currentTab == 4) Icons.Filled.Settings else Icons.Outlined.Settings,
+                    imageVector = if (currentTab == 2) Icons.Filled.Settings else Icons.Outlined.Settings,
                     contentDescription = "Settings",
                     modifier = Modifier.size(20.dp)
                 )
             },
             label = { Text("Settings", fontSize = 10.sp) },
             colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = SpaceDark,
-                selectedTextColor = NeonPurple,
-                indicatorColor = NeonPurple,
-                unselectedIconColor = TextSecondary,
-                unselectedTextColor = TextSecondary
+                selectedIconColor = if (themeColors.isDark) themeColors.cardBackground else Color.White,
+                selectedTextColor = themeColors.primaryAccent,
+                indicatorColor = themeColors.primaryAccent,
+                unselectedIconColor = themeColors.textSecondary,
+                unselectedTextColor = themeColors.textSecondary
             )
         )
     }

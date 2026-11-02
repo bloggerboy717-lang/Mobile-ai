@@ -12,17 +12,31 @@ import com.example.agent.ActionStatus
 import com.example.agent.ActionType
 import com.example.agent.AgentAction
 import com.example.agent.AgentActionEngine
+import com.example.codebuilder.CodeBuildStep
+import com.example.codebuilder.CodeBuilderEngine
+import com.example.codebuilder.GeneratedProject
 import com.example.data.ApiKeyStorage
 import com.example.data.AssistantState
 import com.example.data.ChatMessage
 import com.example.data.ConnectionStatus
+import com.example.data.EmergencyContact
+import com.example.data.EmergencyStorage
 import com.example.data.GeminiApiService
 import com.example.data.MessageSender
+import com.example.data.StudentProfile
+import com.example.data.StudentProfileStorage
+import com.example.data.ThemePreset
+import com.example.data.ThemeStorage
 import com.example.data.VoiceSettings
+import com.example.ui.theme.ThemeColors
+import com.example.ui.theme.resolveThemeColors
 import com.example.persona.ALL_PERSONAS
 import com.example.persona.Persona
 import com.example.service.AlicAccessibilityService
+import com.example.sos.EmergencySosManager
+import com.example.sos.SosState
 import com.example.vision.ScreenCaptureService
+import com.example.voice.GeminiAudioPlayer
 import com.example.voice.SpeechManager
 import com.example.voice.TtsManager
 import kotlinx.coroutines.delay
@@ -112,8 +126,85 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
     )
     val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
 
+    // Student Profile & Personal Memory
+    val studentProfileStorage = StudentProfileStorage(application)
+    private val _studentProfile = MutableStateFlow(studentProfileStorage.getProfile())
+    val studentProfile: StateFlow<StudentProfile> = _studentProfile.asStateFlow()
+
+    fun updateStudentProfile(profile: StudentProfile) {
+        studentProfileStorage.saveProfile(profile)
+        _studentProfile.value = profile
+    }
+
+    // Dynamic App Theme & ORB Configuration
+    val themeStorage = ThemeStorage(application)
+    private val _currentThemePreset = MutableStateFlow(themeStorage.getThemePreset())
+    val currentThemePreset: StateFlow<ThemePreset> = _currentThemePreset.asStateFlow()
+
+    private val _customHexColor = MutableStateFlow(themeStorage.getCustomHex())
+    val customHexColor: StateFlow<String> = _customHexColor.asStateFlow()
+
+    private val _themeColors = MutableStateFlow(
+        resolveThemeColors(themeStorage.getThemePreset(), themeStorage.getCustomHex())
+    )
+    val themeColors: StateFlow<ThemeColors> = _themeColors.asStateFlow()
+
+    fun selectThemePreset(preset: ThemePreset) {
+        themeStorage.saveThemePreset(preset)
+        _currentThemePreset.value = preset
+        _themeColors.value = resolveThemeColors(preset, _customHexColor.value)
+    }
+
+    fun setCustomThemeHex(hex: String) {
+        themeStorage.saveCustomHex(hex)
+        themeStorage.saveThemePreset(ThemePreset.CUSTOM)
+        _customHexColor.value = hex
+        _currentThemePreset.value = ThemePreset.CUSTOM
+        _themeColors.value = resolveThemeColors(ThemePreset.CUSTOM, hex)
+    }
+
+    // SOS Emergency Alert System (Feature 15)
+    val emergencyStorage = EmergencyStorage(application)
+    lateinit var sosManager: EmergencySosManager
+        private set
+
+    val sosState: StateFlow<SosState> get() = sosManager.sosState
+
+    fun triggerSos() {
+        sosManager.triggerSos()
+    }
+
+    fun cancelSos() {
+        sosManager.cancelSos()
+    }
+
+    fun dialPolice112() {
+        sosManager.dialPolice112()
+    }
+
+    // Code Builder Engine (Feature 16)
+    val codeBuilderEngine = CodeBuilderEngine(application)
+    private val _isBuildingCode = MutableStateFlow(false)
+    val isBuildingCode: StateFlow<Boolean> = _isBuildingCode.asStateFlow()
+
+    private val _codeBuildStep = MutableStateFlow(CodeBuildStep.IDLE)
+    val codeBuildStep: StateFlow<CodeBuildStep> = _codeBuildStep.asStateFlow()
+
+    private val _codeBuildStatusText = MutableStateFlow("")
+    val codeBuildStatusText: StateFlow<String> = _codeBuildStatusText.asStateFlow()
+
+    private val _activeGeneratedProject = MutableStateFlow<GeneratedProject?>(null)
+    val activeGeneratedProject: StateFlow<GeneratedProject?> = _activeGeneratedProject.asStateFlow()
+
+    fun dismissProjectPreview() {
+        _activeGeneratedProject.value = null
+    }
+
     // TTS & Voice
     lateinit var ttsManager: TtsManager
+        private set
+
+    lateinit var geminiAudioPlayer: GeminiAudioPlayer
         private set
 
     private val _voiceSettings = MutableStateFlow(VoiceSettings())
@@ -126,6 +217,27 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
     private val speechManager: SpeechManager
 
     init {
+        geminiAudioPlayer = GeminiAudioPlayer(application) { isPlaying ->
+            if (isPlaying) {
+                _assistantState.value = AssistantState.SPEAKING
+            } else if (_assistantState.value == AssistantState.SPEAKING) {
+                _assistantState.value = AssistantState.IDLE
+                if (_isContinuousMode.value && !userCancelledLoop) {
+                    viewModelScope.launch {
+                        delay(450)
+                        if (_assistantState.value == AssistantState.IDLE && _isContinuousMode.value && !userCancelledLoop) {
+                            _recognizedLiveText.value = ""
+                            speechManager.startListening()
+                        }
+                    }
+                }
+            }
+        }
+
+        sosManager = EmergencySosManager(application, emergencyStorage, studentProfileStorage) { reassurance ->
+            ttsManager.speak(reassurance)
+        }
+
         ttsManager = TtsManager(application) { isSpeaking ->
             if (isSpeaking) {
                 _assistantState.value = AssistantState.SPEAKING
@@ -239,6 +351,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
     fun switchPersona(persona: Persona) {
         _currentPersona.value = persona
         ttsManager.applyPersonaVoice(persona)
+        _voiceSettings.value = ttsManager.currentSettings
         _chatMessages.value = _chatMessages.value + ChatMessage(
             sender = MessageSender.ALIC,
             text = persona.defaultGreeting
@@ -318,11 +431,60 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
         val userMsg = ChatMessage(sender = MessageSender.USER, text = prompt)
         _chatMessages.value = _chatMessages.value + userMsg
 
-        // Check if user request is an actionable phone intent
+        // 1. Check for SOS Emergency Alert Cancellation (Feature 15)
+        if (sosManager.isSosCancelTrigger(prompt) && sosState.value.isActive) {
+            sosManager.cancelSos()
+            val safeReply = "खुशी हुई जानकर कि आप सुरक्षित हैं। मैंने आपके तीनों कॉन्टैक्ट्स को 'सब ठीक है' का संदेश भेज दिया है।"
+            _chatMessages.value = _chatMessages.value + ChatMessage(sender = MessageSender.ALIC, text = safeReply)
+            return
+        }
+
+        // 2. Check for SOS Emergency Alert Trigger (Feature 15: "बचाओ बचाओ बचाओ")
+        if (sosManager.isSosTrigger(prompt)) {
+            sosManager.triggerSos()
+            val sosReply = "🚨 SOS आपातकालीन मोड सक्रिय हो गया है! आपके 3 इमरजेंसी कॉन्टैक्ट्स को तुरंत लाइव लोकेशन लिंक भेज दिया गया है और कॉल किया जा रहा है। 112 डायल करने का विकल्प उपलब्ध है। मैं आपके साथ हूँ।"
+            _chatMessages.value = _chatMessages.value + ChatMessage(sender = MessageSender.ALIC, text = sosReply)
+            return
+        }
+
+        // 3. Check for Code Builder Request (Feature 16: Code, Website, App building)
+        if (CodeBuilderEngine.isCodeBuildRequest(prompt)) {
+            _isBuildingCode.value = true
+            _assistantState.value = AssistantState.THINKING
+            viewModelScope.launch {
+                try {
+                    val project = codeBuilderEngine.generateProject(
+                        userPrompt = prompt,
+                        apiKey = apiKey,
+                        modelId = _selectedModel.value,
+                        geminiService = geminiApiService,
+                        onStepUpdate = { step, statusText ->
+                            _codeBuildStep.value = step
+                            _codeBuildStatusText.value = statusText
+                        }
+                    )
+                    _activeGeneratedProject.value = project
+                    _isBuildingCode.value = false
+                    val alicReply = "${project.explanationHindi}\n\n📁 प्रोजेक्ट फ़ोल्डर: ${project.folderPath}\n📦 ZIP फ़ाइल: ${project.zipPath}\n\n${project.followUpQuestion}"
+                    _chatMessages.value = _chatMessages.value + ChatMessage(sender = MessageSender.ALIC, text = alicReply)
+                    _assistantState.value = AssistantState.SPEAKING
+                    ttsManager.speak("मैंने आपके लिए प्रोजेक्ट तैयार कर दिया है। यह Downloads फ़ोल्डर में सहेज दिया गया है। क्या मैं समझा दूँ कि यह कैसे काम करता है?")
+                } catch (e: Exception) {
+                    _isBuildingCode.value = false
+                    _codeBuildStep.value = CodeBuildStep.FAILED
+                    val err = "प्रोजेक्ट बनाने में समस्या आई: ${e.message}"
+                    _errorMessage.value = err
+                    _chatMessages.value = _chatMessages.value + ChatMessage(sender = MessageSender.ALIC, text = err, isError = true)
+                    _assistantState.value = AssistantState.IDLE
+                }
+            }
+            return
+        }
+
+        // 4. Check if user request is an actionable phone intent
         val parsedAction = actionEngine.parseUserIntent(prompt)
         if (parsedAction != null) {
             if (parsedAction.type == ActionType.ANALYZE_SCREEN) {
-                switchTab(2) // Switch to Vision
                 analyzeCurrentScreen(prompt)
                 return
             }
@@ -339,23 +501,55 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Standard Gemini conversational reasoning with persona instructions
+        // 5. Standard ALIC-AI conversational reasoning with Student Profile Memory
         _assistantState.value = AssistantState.THINKING
 
+        val profile = _studentProfile.value
+        val memoryContext = if (profile.isConfigured) {
+            "STUDENT MEMORY: Student Name is '${profile.name}', Class/Course is '${profile.gradeOrCourse}', Goal is '${profile.goal}', Weakest Subject is '${profile.weakSubject}'. Address student warmly by name and personalize all explanations, doubt solutions, study planner, and quiz questions."
+        } else {
+            "STUDENT PROFILE STATUS: First time conversation. Warmly ask the student for their Name, Class/Course, Goal, and Weakest Subject so you can serve as their personal Jarvis."
+        }
+        val enrichedInstructions = "${_currentPersona.value.systemPromptInstructions}\n\n$memoryContext"
+
+        val voiceName = when (_currentPersona.value.id) {
+            com.example.persona.PersonaId.AOEDE -> "Aoede"
+            com.example.persona.PersonaId.CHARON -> "Charon"
+            com.example.persona.PersonaId.PUCK -> "Puck"
+            com.example.persona.PersonaId.FENRIR -> "Fenrir"
+            com.example.persona.PersonaId.KORE -> "Kore"
+            else -> "Aoede"
+        }
+
         viewModelScope.launch {
-            val result = geminiApiService.generateAssistantResponse(
+            val result = geminiApiService.generateAssistantVoiceResponse(
                 apiKey = apiKey,
                 modelId = _selectedModel.value,
                 userPrompt = prompt,
-                systemInstructions = _currentPersona.value.systemPromptInstructions,
+                voiceName = voiceName,
+                systemInstructions = enrichedInstructions,
                 recentHistory = _chatMessages.value
             )
 
-            result.onSuccess { reply ->
-                val alicMsg = ChatMessage(sender = MessageSender.ALIC, text = reply)
+            result.onSuccess { voiceResult ->
+                val alicMsg = ChatMessage(sender = MessageSender.ALIC, text = voiceResult.text)
                 _chatMessages.value = _chatMessages.value + alicMsg
-                _assistantState.value = AssistantState.SPEAKING
-                ttsManager.speak(reply)
+                if (!_voiceSettings.value.muteSpokenReplies) {
+                    _assistantState.value = AssistantState.SPEAKING
+                    if (voiceResult.audioBase64 != null) {
+                        val played = geminiAudioPlayer.playBase64Audio(
+                            base64Data = voiceResult.audioBase64,
+                            mimeType = voiceResult.mimeType
+                        )
+                        if (!played) {
+                            ttsManager.speak(voiceResult.text)
+                        }
+                    } else {
+                        ttsManager.speak(voiceResult.text)
+                    }
+                } else {
+                    _assistantState.value = AssistantState.IDLE
+                }
             }.onFailure { error ->
                 _assistantState.value = AssistantState.IDLE
                 val errorMsg = error.message ?: "Failed to generate response."

@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Refresh
@@ -77,81 +78,117 @@ fun ApiKeySetupDialog(
     var passwordVisible by remember { mutableStateOf(false) }
 
     Dialog(
-        onDismissRequest = { if (canDismiss) onDismiss() },
+        onDismissRequest = onDismiss,
         properties = DialogProperties(
-            dismissOnBackPress = canDismiss,
-            dismissOnClickOutside = canDismiss,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
             usePlatformDefaultWidth = false
         )
     ) {
+        val themeColors = com.example.ui.theme.AppTheme.colors
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .clip(RoundedCornerShape(24.dp))
                 .border(
                     width = 1.5.dp,
-                    brush = Brush.linearGradient(listOf(CyberSky.copy(alpha = 0.6f), NeonPurple.copy(alpha = 0.6f))),
+                    brush = Brush.linearGradient(listOf(themeColors.primaryAccent.copy(alpha = 0.6f), themeColors.secondaryAccent.copy(alpha = 0.6f))),
                     shape = RoundedCornerShape(24.dp)
                 )
                 .testTag("api_key_setup_dialog"),
-            color = CardDark,
+            color = themeColors.cardBackground,
             tonalElevation = 8.dp
         ) {
             Column(
                 modifier = Modifier
-                    .padding(24.dp)
+                    .padding(20.dp)
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Futuristic Icon Badge
-                Box(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(listOf(CyberSky.copy(alpha = 0.3f), NeonPurple.copy(alpha = 0.15f)))
-                        )
-                        .border(1.dp, CyberSky.copy(alpha = 0.4f), CircleShape),
-                    contentAlignment = Alignment.Center
+                // Top Header Row with Title and Cut / Close ('X') Option
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Key,
-                        contentDescription = "API Key",
-                        tint = CyberSky,
-                        modifier = Modifier.size(30.dp)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.radialGradient(listOf(themeColors.primaryAccent.copy(alpha = 0.35f), themeColors.secondaryAccent.copy(alpha = 0.2f)))
+                                )
+                                .border(1.dp, themeColors.primaryAccent.copy(alpha = 0.5f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Key,
+                                contentDescription = "API Key",
+                                tint = themeColors.primaryAccent,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "Configure Gemini API",
+                                color = themeColors.textPrimary,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Google AI Studio",
+                                color = themeColors.primaryAccent,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    // Cut/Close 'X' button requested by user
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(themeColors.cardElevated)
+                            .border(1.dp, themeColors.cardBorder, CircleShape)
+                            .testTag("dialog_cut_close_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cut / Close Dialog",
+                            tint = themeColors.textPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = "Configure Gemini API",
-                    color = TextPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Alic AI uses the Google Gemini API for natural voice intelligence. Please provide your own Gemini API key to activate voice features.",
-                    color = TextSecondary,
+                    text = "Alic AI uses the Google Gemini API for natural voice intelligence. You can configure your key now or later in Settings.",
+                    color = themeColors.textSecondary,
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Start,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
                     text = "• Keys are stored securely on-device with Android Keystore AES-GCM.\n• No API keys are hardcoded in the app.",
-                    color = TextMuted,
+                    color = themeColors.textMuted,
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Start,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(CardElevatedDark.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                        .background(themeColors.cardElevated, RoundedCornerShape(12.dp))
                         .padding(10.dp)
                 )
 
@@ -164,8 +201,8 @@ fun ApiKeySetupDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("setup_gemini_api_key_input"),
-                    label = { Text("Gemini API Key", color = TextSecondary) },
-                    placeholder = { Text("AIzaSy...", color = TextMuted) },
+                    label = { Text("Gemini API Key", color = themeColors.textSecondary) },
+                    placeholder = { Text("AIzaSy...", color = themeColors.textMuted) },
                     singleLine = true,
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
@@ -176,16 +213,18 @@ fun ApiKeySetupDialog(
                             Icon(
                                 imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                 contentDescription = if (passwordVisible) "Hide key" else "Show key",
-                                tint = TextSecondary
+                                tint = themeColors.textSecondary
                             )
                         }
                     },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CyberSky,
-                        unfocusedBorderColor = CardBorderDark,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        cursorColor = CyberSky
+                        focusedBorderColor = themeColors.primaryAccent,
+                        unfocusedBorderColor = themeColors.cardBorder,
+                        focusedTextColor = themeColors.textPrimary,
+                        unfocusedTextColor = themeColors.textPrimary,
+                        focusedContainerColor = themeColors.cardBackground,
+                        unfocusedContainerColor = themeColors.cardBackground,
+                        cursorColor = themeColors.primaryAccent
                     ),
                     shape = RoundedCornerShape(14.dp)
                 )
@@ -231,14 +270,12 @@ fun ApiKeySetupDialog(
                     )
                 }
 
-                if (canDismiss) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    TextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.testTag("setup_skip_button")
-                    ) {
-                        Text("Configure Later in Settings", color = TextSecondary, fontSize = 13.sp)
-                    }
+                Spacer(modifier = Modifier.height(10.dp))
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.testTag("setup_skip_button")
+                ) {
+                    Text("Configure Later in Settings", color = themeColors.textSecondary, fontSize = 13.sp)
                 }
             }
         }
