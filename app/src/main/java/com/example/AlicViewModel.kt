@@ -36,15 +36,6 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
     private val apiKeyStorage = ApiKeyStorage(application)
     private val geminiApiService = GeminiApiService()
     private val actionEngine = AgentActionEngine(application)
-    // Google Login & Access License Gate State (Validated in Cloud Firestore)
-    private val _isAccessGranted = MutableStateFlow(false)
-    val isAccessGranted: StateFlow<Boolean> = _isAccessGranted.asStateFlow()
-
-    private val _authenticatedUserEmail = MutableStateFlow<String?>(null)
-    val authenticatedUserEmail: StateFlow<String?> = _authenticatedUserEmail.asStateFlow()
-
-    private val _revalidationTrigger = MutableStateFlow(0L)
-    val revalidationTrigger: StateFlow<Long> = _revalidationTrigger.asStateFlow()
 
     // Current Persona (Default: Gemini)
     private val _currentPersona = MutableStateFlow(ALL_PERSONAS.first())
@@ -583,34 +574,6 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissError() {
         _errorMessage.value = null
-    }
-
-    // Google Login & Access Gate Callbacks
-    fun onAccessGranted(email: String) {
-        _authenticatedUserEmail.value = email.ifBlank { null }
-        _isAccessGranted.value = true
-    }
-
-    fun onAccessRevoked() {
-        _isAccessGranted.value = false
-    }
-
-    fun onSignOut() {
-        _isAccessGranted.value = false
-        _authenticatedUserEmail.value = null
-    }
-
-    fun triggerForegroundRevalidation() {
-        _revalidationTrigger.value = System.currentTimeMillis()
-    }
-
-    fun revokeAccessAndChangeCode() {
-        _isAccessGranted.value = false
-    }
-
-    fun signOutFromApp() {
-        _isAccessGranted.value = false
-        _authenticatedUserEmail.value = null
     }
 
     override fun onCleared() {
