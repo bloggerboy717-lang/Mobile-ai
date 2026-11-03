@@ -26,14 +26,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Web
 import com.example.ui.components.CodeRunningDialog
 import com.example.ui.components.ProjectPreviewDialog
@@ -376,7 +376,7 @@ fun ChatScreen(
                         .background(if (inputText.isNotBlank()) themeColors.primaryAccent else themeColors.cardElevated)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Send,
+                        imageVector = Icons.AutoMirrored.Filled.Send,
                         contentDescription = "Send",
                         tint = if (inputText.isNotBlank()) Color.White else themeColors.textMuted,
                         modifier = Modifier.size(18.dp)
@@ -521,7 +521,7 @@ fun ChatBubble(
                                     onClick = onRepeat,
                                     modifier = Modifier.size(24.dp)
                                 ) {
-                                    Icon(imageVector = Icons.Default.VolumeUp, contentDescription = "Repeat", tint = themeColors.primaryAccent, modifier = Modifier.size(15.dp))
+                                    Icon(imageVector = Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "Repeat", tint = themeColors.primaryAccent, modifier = Modifier.size(15.dp))
                                 }
                                 Spacer(modifier = Modifier.width(4.dp))
                                 IconButton(

@@ -157,6 +157,30 @@ class AlicAccessibilityService : AccessibilityService() {
         return performGlobalAction(GLOBAL_ACTION_RECENTS)
     }
 
+    fun answerIncomingCall(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val keywords = listOf("answer", "accept", "receive", "उत्तर", "उठाएं", "कॉल उठाओ", "pick up")
+        for (kw in keywords) {
+            val nodes = root.findAccessibilityNodeInfosByText(kw)
+            for (node in nodes) {
+                if (performClickRecursive(node)) return true
+            }
+        }
+        return false
+    }
+
+    fun endCurrentCall(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val keywords = listOf("end", "decline", "reject", "काटें", "अस्वीकार", "hang up", "dismiss")
+        for (kw in keywords) {
+            val nodes = root.findAccessibilityNodeInfosByText(kw)
+            for (node in nodes) {
+                if (performClickRecursive(node)) return true
+            }
+        }
+        return false
+    }
+
     override fun onInterrupt() {
         Log.w(TAG, "AlicAccessibilityService interrupted.")
     }

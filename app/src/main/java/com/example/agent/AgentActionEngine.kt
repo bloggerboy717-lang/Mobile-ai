@@ -1,12 +1,17 @@
 package com.example.agent
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.provider.AlarmClock
 import android.provider.Settings
+import android.telecom.TelecomManager
+import android.telephony.SmsManager
 import android.util.Log
 import com.example.service.AlicAccessibilityService
 import java.util.UUID
@@ -22,7 +27,11 @@ enum class ActionType {
     ADJUST_VOLUME,
     SYSTEM_NAV,
     ANALYZE_SCREEN,
-    CUSTOM_EXPLANATION
+    CUSTOM_EXPLANATION,
+    ANSWER_CALL,
+    END_CALL,
+    SEND_SMS,
+    READ_SMS
 }
 
 enum class ActionStatus {
@@ -59,6 +68,57 @@ class AgentActionEngine(private val context: Context) {
         val lower = prompt.lowercase().trim()
 
         return when {
+            // Answer incoming call ("फोन उठाओ", "कॉल उठाओ", "phone uthao", "answer call", "pick up", "receive call")
+            lower.contains("phone uthao") || lower.contains("call uthao") || lower.contains("answer call") ||
+                    lower.contains("pick up") || lower.contains("receive call") || lower.contains("call pick") ||
+                    lower.contains("फोन उठाओ") || lower.contains("कॉल उठाओ") || lower.contains("फोन रिसीव") ||
+                    lower.contains("कॉल रिसीव") || lower.contains("उठा लो") || lower.contains("उठाओ") && (lower.contains("phone") || lower.contains("call") || lower.contains("फोन") || lower.contains("कॉल")) -> {
+                AgentAction(
+                    type = ActionType.ANSWER_CALL,
+                    title = "Answer Incoming Call",
+                    description = "फोन उठा रहा हूँ (Answering phone call)"
+                )
+            }
+
+            // End / cut call ("फोन काटो", "कॉल काटो", "phone cut", "end call", "reject call", "hang up", "cut karo")
+            lower.contains("phone kato") || lower.contains("call kato") || lower.contains("phone cut") ||
+                    lower.contains("call cut") || lower.contains("end call") || lower.contains("reject call") ||
+                    lower.contains("hang up") || lower.contains("disconnect call") || lower.contains("cut phone") ||
+                    lower.contains("फोन काटो") || lower.contains("कॉल काटो") || lower.contains("फोन काट दो") ||
+                    lower.contains("कॉल काट दो") || lower.contains("कॉल डिस्कनेक्ट") || lower.contains("काट दो") && (lower.contains("phone") || lower.contains("call") || lower.contains("फोन") || lower.contains("कॉल")) -> {
+                AgentAction(
+                    type = ActionType.END_CALL,
+                    title = "End Phone Call",
+                    description = "फोन काट रहा हूँ (Ending phone call)"
+                )
+            }
+
+            // Send SMS / Message ("मैसेज भेजो", "send message", "send sms", "sms bhejo")
+            lower.contains("message bhejo") || lower.contains("sms bhejo") || lower.contains("send message") ||
+                    lower.contains("send sms") || lower.contains("मैसेज भेजो") || lower.contains("एसएमएस भेजो") ||
+                    lower.contains("मैसेज करो") || lower.contains("संदेश भेजो") || lower.contains("message karo") -> {
+                val recipient = extractSmsRecipient(prompt)
+                val msg = extractSmsMessage(prompt)
+                AgentAction(
+                    type = ActionType.SEND_SMS,
+                    title = if (recipient.isNotBlank()) "Send Message to $recipient" else "Send SMS",
+                    description = if (msg.isNotBlank()) "मैसेज: '$msg'" else "SMS कंपोज़ कर रहा हूँ",
+                    params = mapOf("recipient" to recipient, "message" to msg)
+                )
+            }
+
+            // Read SMS / Message ("मैसेज पढ़ो", "मैसेज देखना", "मैसेज सुनाओ", "read message", "read sms")
+            lower.contains("message padho") || lower.contains("message dekhna") || lower.contains("read message") ||
+                    lower.contains("read sms") || lower.contains("check message") || lower.contains("मैसेज पढ़ो") ||
+                    lower.contains("मैसेज देखना") || lower.contains("मैसेज सुनाओ") || lower.contains("संदेश पढ़ो") ||
+                    lower.contains("नया मैसेज") || lower.contains("मैसेज बताओ") || lower.contains("show message") -> {
+                AgentAction(
+                    type = ActionType.READ_SMS,
+                    title = "Read Latest Messages",
+                    description = "इनबॉक्स के मैसेज पढ़कर सुना रहा हूँ"
+                )
+            }
+
             // Flashlight / Torch (English & Hindi: "torch jalao", "torch on karo", "टॉर्च जलाओ", "टॉर्च चालू करो", "flashlight band karo", "टॉर्च बंद करो")
             lower.contains("torch") || lower.contains("flashlight") || lower.contains("टॉर्च") || lower.contains("फ्लैशलाइट") -> {
                 val turnOff = lower.contains("off") || lower.contains("band") || lower.contains("bujhao") ||
@@ -320,6 +380,20 @@ class AgentActionEngine(private val context: Context) {
                     action.resultMessage = "Vision capture triggered."
                     true
                 }
+                ActionType.ANSWER_CALL -> {
+                    answerCall(action)
+                }
+                ActionType.END_CALL -> {
+                    endCall(action)
+                }
+                ActionType.SEND_SMS -> {
+                    val recipient = action.params["recipient"] ?: ""
+                    val message = action.params["message"] ?: ""
+                    sendSms(recipient, message, action)
+                }
+                ActionType.READ_SMS -> {
+                    readLatestSms(action)
+                }
                 ActionType.CUSTOM_EXPLANATION -> true
             }
 
@@ -534,5 +608,143 @@ class AgentActionEngine(private val context: Context) {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         return runCatching { context.startActivity(shareIntent); true }.getOrDefault(false)
+    }
+
+    private fun answerCall(action: AgentAction): Boolean {
+        var answered = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val telecom = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+            if (context.checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
+                try {
+                    telecom?.acceptRingingCall()
+                    answered = true
+                } catch (e: Exception) {
+                    Log.d(TAG, "TelecomManager acceptRingingCall exception: ${e.message}")
+                }
+            }
+        }
+        if (!answered) {
+            answered = AlicAccessibilityService.instance?.answerIncomingCall() ?: false
+        }
+        action.resultMessage = if (answered) "फोन उठा लिया गया है (Call answered)." else "कॉल उठाने का प्रयास किया गया (Attempted to answer call)."
+        return answered
+    }
+
+    private fun endCall(action: AgentAction): Boolean {
+        var ended = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val telecom = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+            if (context.checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
+                try {
+                    ended = telecom?.endCall() ?: false
+                } catch (e: Exception) {
+                    Log.d(TAG, "TelecomManager endCall exception: ${e.message}")
+                }
+            }
+        }
+        if (!ended) {
+            ended = AlicAccessibilityService.instance?.endCurrentCall() ?: false
+        }
+        action.resultMessage = if (ended) "फोन काट दिया गया है (Call ended)." else "फोन काटने का प्रयास किया गया (Attempted to end call)."
+        return ended
+    }
+
+    private fun sendSms(recipient: String, message: String, action: AgentAction): Boolean {
+        var sent = false
+        if (recipient.isNotBlank() && context.checkSelfPermission(Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    context.getSystemService(SmsManager::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    SmsManager.getDefault()
+                }
+                smsManager?.sendTextMessage(recipient, null, message, null, null)
+                sent = true
+                action.resultMessage = "मैसेज '$message' $recipient को भेज दिया गया।"
+            } catch (e: Exception) {
+                Log.e(TAG, "Direct SMS send failed: ${e.message}")
+            }
+        }
+        if (!sent) {
+            try {
+                val intent = Intent(Intent.ACTION_SENDTO).apply {
+                    data = Uri.parse("smsto:${if (recipient.isNotBlank()) Uri.encode(recipient) else ""}")
+                    putExtra("sms_body", message)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
+                sent = true
+                action.resultMessage = "मैसेज भेजने के लिए SMS ऐप खोल दिया गया है।"
+            } catch (e: Exception) {
+                action.resultMessage = "मैसेज भेजने में समस्या: ${e.message}"
+            }
+        }
+        return sent
+    }
+
+    private fun readLatestSms(action: AgentAction): Boolean {
+        return if (context.checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                val cursor = context.contentResolver.query(
+                    Uri.parse("content://sms/inbox"),
+                    arrayOf("address", "body"),
+                    null, null, "date DESC LIMIT 3"
+                )
+                val list = mutableListOf<String>()
+                cursor?.use {
+                    while (it.moveToNext()) {
+                        val sender = it.getString(it.getColumnIndexOrThrow("address")) ?: "Unknown"
+                        val body = it.getString(it.getColumnIndexOrThrow("body")) ?: ""
+                        list.add("$sender: $body")
+                    }
+                }
+                if (list.isNotEmpty()) {
+                    action.resultMessage = "नवीनतम मैसेज:\n" + list.joinToString("\n\n")
+                    true
+                } else {
+                    action.resultMessage = "इनबॉक्स में कोई नया मैसेज नहीं मिला।"
+                    true
+                }
+            } catch (e: Exception) {
+                action.resultMessage = "मैसेज पढ़ने में त्रुटि: ${e.message}"
+                false
+            }
+        } else {
+            action.resultMessage = "मैसेज पढ़ने के लिए Permissions Center में SMS अनुमति दें।"
+            false
+        }
+    }
+
+    private fun extractSmsRecipient(text: String): String {
+        val lower = text.lowercase()
+        // Extract numbers like 9876543210
+        val phoneRegex = Regex("\\b\\d{10}\\b|\\b\\+?\\d{11,13}\\b")
+        val match = phoneRegex.find(text)
+        if (match != null) return match.value
+
+        val keywords = listOf("ko message", "ko sms", "to", "send message to", "ko", "को मैसेज", "को एसएमएस", "को")
+        for (kw in keywords) {
+            val idx = lower.indexOf(kw)
+            if (idx != -1) {
+                val before = text.substring(0, idx).trim()
+                val words = before.split(" ")
+                if (words.isNotEmpty()) return words.last()
+            }
+        }
+        return ""
+    }
+
+    private fun extractSmsMessage(text: String): String {
+        val lower = text.lowercase()
+        val keywords = listOf("bhejo", "likho", "send", "भेजो", "लिखो", "बोलो", "message:", "sms:")
+        for (kw in keywords) {
+            val idx = lower.indexOf(kw)
+            if (idx != -1 && idx + kw.length < text.length) {
+                val content = text.substring(idx + kw.length).trim()
+                if (content.isNotBlank()) return content
+            }
+        }
+        return text
     }
 }

@@ -3,9 +3,12 @@ package com.example.ui.screens.settings
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +23,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Mic
@@ -90,28 +95,14 @@ fun AboutAlicSubSetting(
                 modifier = Modifier.padding(18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
+                Image(
+                    painter = painterResource(id = R.drawable.app_logo),
+                    contentDescription = "ALIC AI Logo",
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(80.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(
-                                    themeColors.primaryAccent.copy(alpha = 0.35f),
-                                    themeColors.secondaryAccent.copy(alpha = 0.15f)
-                                )
-                            )
-                        )
-                        .border(1.5.dp, themeColors.primaryAccent, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "A",
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Black,
-                        color = themeColors.primaryAccent
-                    )
-                }
+                        .border(2.dp, themeColors.primaryAccent, CircleShape)
+                )
 
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -331,6 +322,27 @@ fun AboutAlicSubSetting(
                     icon = Icons.Default.CameraAlt,
                     title = "Vision Doubt & Homework Solver",
                     description = "Point the camera at math problems, science diagrams, or textbook questions to get instant, step-by-step explanations.",
+                    themeColors = themeColors
+                )
+
+                HowToUseItem(
+                    icon = Icons.Default.Call,
+                    title = "Voice Call Answering & Ending",
+                    description = "Say 'फोन उठाओ' (Answer call) or 'फोन काटो' (End call) hands-free even when doing other activities.",
+                    themeColors = themeColors
+                )
+
+                HowToUseItem(
+                    icon = Icons.Default.Email,
+                    title = "SMS Messages & Live Read Aloud",
+                    description = "Say 'मैसेज भेजो' to send text messages, 'मैसेज पढ़ो' to check inbox, and ALIC automatically announces incoming SMS out loud when they arrive ('जब मैसेज आए तो पढ़कर बताना').",
+                    themeColors = themeColors
+                )
+
+                HowToUseItem(
+                    icon = Icons.Default.Mic,
+                    title = "Whisper & Soft-Speech Recognition",
+                    description = "Speak as quietly as you need — ALIC's high-gain sensitivity accurately captures soft whispers and low-volume voices.",
                     themeColors = themeColors
                 )
 

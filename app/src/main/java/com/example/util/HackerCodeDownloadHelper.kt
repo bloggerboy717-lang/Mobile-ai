@@ -29,7 +29,11 @@ object HackerCodeDownloadHelper {
                     put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/ALIC_Code")
                 }
                 val resolver = context.contentResolver
-                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                val uri = try {
+                    resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                } catch (e: Exception) {
+                    null
+                }
                 if (uri != null) {
                     resolver.openOutputStream(uri)?.use { stream ->
                         stream.write(codeContent.toByteArray(Charsets.UTF_8))
@@ -38,7 +42,14 @@ object HackerCodeDownloadHelper {
                     Log.i(TAG, "Saved code script via MediaStore to Downloads/ALIC_Code/$fileName")
                     fileName
                 } else {
-                    null
+                    // Fallback for Robolectric/testing or devices without MediaStore download provider
+                    val fallbackDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                        ?: File(context.filesDir, "downloads")
+                    val appDir = File(fallbackDir, "ALIC_Code")
+                    if (!appDir.exists()) appDir.mkdirs()
+                    val targetFile = File(appDir, fileName)
+                    targetFile.writeText(codeContent, Charsets.UTF_8)
+                    fileName
                 }
             } else {
                 val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)

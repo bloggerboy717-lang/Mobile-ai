@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.ApiKeyStorage
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -130,6 +131,48 @@ class ExampleRobolectricTest {
     assertTrue(titles.contains("AI & Model Settings"))
     assertTrue(titles.contains("Permissions Center"))
     assertTrue(titles.contains("About ALIC-AI"))
+  }
+
+  @Test
+  fun `verify voice call and SMS action parsing`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val engine = com.example.agent.AgentActionEngine(context)
+
+    val answerAction1 = engine.parseUserIntent("फोन उठाओ")
+    assertNotNull(answerAction1)
+    assertEquals(com.example.agent.ActionType.ANSWER_CALL, answerAction1?.type)
+
+    val answerAction2 = engine.parseUserIntent("call uthao please")
+    assertNotNull(answerAction2)
+    assertEquals(com.example.agent.ActionType.ANSWER_CALL, answerAction2?.type)
+
+    val endAction1 = engine.parseUserIntent("फोन काटो")
+    assertNotNull(endAction1)
+    assertEquals(com.example.agent.ActionType.END_CALL, endAction1?.type)
+
+    val endAction2 = engine.parseUserIntent("call cut karo")
+    assertNotNull(endAction2)
+    assertEquals(com.example.agent.ActionType.END_CALL, endAction2?.type)
+
+    val sendSmsAction = engine.parseUserIntent("मैसेज भेजो 9876543210 को हेलो")
+    assertNotNull(sendSmsAction)
+    assertEquals(com.example.agent.ActionType.SEND_SMS, sendSmsAction?.type)
+
+    val readSmsAction = engine.parseUserIntent("मैसेज पढ़ो")
+    assertNotNull(readSmsAction)
+    assertEquals(com.example.agent.ActionType.READ_SMS, readSmsAction?.type)
+  }
+
+  @Test
+  fun `verify hacker code download helper generation`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val script = com.example.util.HackerCodeDownloadHelper.generateHackerScriptSample(123456789L)
+    assertTrue(script.contains("HackerMatrixPayload"))
+    assertTrue(script.contains("ALIC-AI Autonomous Hacker Core Script"))
+
+    val savedFileName = com.example.util.HackerCodeDownloadHelper.saveCodeToDownloads(context, script, "TEST_CODE")
+    assertNotNull(savedFileName)
+    assertTrue(savedFileName!!.endsWith(".kt"))
   }
 }
 

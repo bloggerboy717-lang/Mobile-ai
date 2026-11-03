@@ -32,8 +32,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.BatteryAlert
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Notifications
@@ -100,6 +102,8 @@ fun PermissionsScreen(
     var batteryOptimizationIgnored by remember { mutableStateOf(false) }
     var isBackgroundServiceRunning by remember { mutableStateOf(false) }
     var isAccessibilityEnabled by remember { mutableStateOf(false) }
+    var phoneCallGranted by remember { mutableStateOf(false) }
+    var smsGranted by remember { mutableStateOf(false) }
 
     // Evaluate live status on composition and whenever refreshKey triggers
     LaunchedEffect(refreshKey) {
@@ -113,6 +117,16 @@ fun PermissionsScreen(
 
         locationGranted = ContextCompat.checkSelfPermission(
             context, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        phoneCallGranted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ANSWER_PHONE_CALLS
+        ) == PackageManager.PERMISSION_GRANTED
+
+        smsGranted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.RECEIVE_SMS
+        ) == PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(
+            context, Manifest.permission.SEND_SMS
         ) == PackageManager.PERMISSION_GRANTED
 
         notificationGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -145,6 +159,14 @@ fun PermissionsScreen(
 
     val notificationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
+    ) { refreshKey++ }
+
+    val phoneCallLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { refreshKey++ }
+
+    val smsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { refreshKey++ }
 
     Column(
@@ -342,7 +364,11 @@ fun PermissionsScreen(
                     ) {
                         Button(
                             onClick = {
-                                VoiceAssistantForegroundService.startService(context)
+                                try {
+                                    VoiceAssistantForegroundService.startService(context)
+                                } catch (e: Exception) {
+                                    android.util.Log.e("PermissionsScreen", "Failed to start service", e)
+                                }
                                 refreshKey++
                             },
                             modifier = Modifier
@@ -360,7 +386,11 @@ fun PermissionsScreen(
 
                         OutlinedButton(
                             onClick = {
-                                VoiceAssistantForegroundService.stopService(context)
+                                try {
+                                    VoiceAssistantForegroundService.stopService(context)
+                                } catch (e: Exception) {
+                                    android.util.Log.e("PermissionsScreen", "Failed to stop service", e)
+                                }
                                 refreshKey++
                             },
                             modifier = Modifier
@@ -451,20 +481,75 @@ fun PermissionsScreen(
                 isGranted = isAccessibilityEnabled,
                 actionText = if (isAccessibilityEnabled) "Enabled" else "Open Accessibility",
                 onAction = {
-                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                    context.startActivity(intent)
+                    try {
+                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        android.util.Log.e("PermissionsScreen", "Failed to open accessibility settings", e)
+                    }
                 },
                 themeColors = themeColors,
                 testTag = "perm_accessibility_button"
             )
 
-            // 8. ALL APP SYSTEM SETTINGS BUTTON
+            // 8. VOICE CALL ANSWERING & ENDING ("फोन उठाना, फोन काटना")
+            PermissionItemCard(
+                icon = Icons.Default.Call,
+                title = "Voice Call Control",
+                description = "Enables answering phone calls ('फोन उठाओ') and ending calls ('फोन काटो') hands-free by voice.",
+                isGranted = phoneCallGranted,
+                actionText = if (phoneCallGranted) "Granted" else "Allow Call Control",
+                onAction = {
+                    try {
+                        phoneCallLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ANSWER_PHONE_CALLS,
+                                Manifest.permission.READ_PHONE_STATE
+                            )
+                        )
+                    } catch (e: Exception) {
+                        android.util.Log.e("PermissionsScreen", "Failed to launch call permissions", e)
+                    }
+                },
+                themeColors = themeColors,
+                testTag = "perm_phone_call_button"
+            )
+
+            // 9. SMS MESSAGES & AUTOMATIC ANNOUNCEMENT ("मैसेज भेजना, मैसेज देखना, मैसेज पढ़कर बताना")
+            PermissionItemCard(
+                icon = Icons.Default.Email,
+                title = "SMS Send & Read Aloud",
+                description = "Enables sending SMS by voice, checking inbox messages, and automatically speaking incoming messages aloud when they arrive ('जब मैसेज आए तो पढ़कर बताना').",
+                isGranted = smsGranted,
+                actionText = if (smsGranted) "Granted" else "Allow SMS Access",
+                onAction = {
+                    try {
+                        smsLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.RECEIVE_SMS,
+                                Manifest.permission.SEND_SMS,
+                                Manifest.permission.READ_SMS
+                            )
+                        )
+                    } catch (e: Exception) {
+                        android.util.Log.e("PermissionsScreen", "Failed to launch sms permissions", e)
+                    }
+                },
+                themeColors = themeColors,
+                testTag = "perm_sms_button"
+            )
+
+            // 10. ALL APP SYSTEM SETTINGS BUTTON
             OutlinedButton(
                 onClick = {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.parse("package:${context.packageName}")
+                    try {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.parse("package:${context.packageName}")
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        android.util.Log.e("PermissionsScreen", "Failed to open app settings", e)
                     }
-                    context.startActivity(intent)
                 },
                 modifier = Modifier
                     .fillMaxWidth()

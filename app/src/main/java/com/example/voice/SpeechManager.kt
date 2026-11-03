@@ -102,10 +102,13 @@ class SpeechManager(
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                     putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-                    // Keep listening longer without cutting the user off
-                    putExtra("android.speech.extras.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 3000L)
-                    putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 2500L)
-                    putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 2000L)
+                    // High Sensitivity for Whispers and Low Volume Speech
+                    putExtra("android.speech.extra.DICTATION_MODE", true)
+                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
+                    // Ultra-fast endpointing: reply within 1 second after user finishes speaking
+                    putExtra("android.speech.extras.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 400L)
+                    putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 750L)
+                    putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 600L)
                 }
 
                 // Silence the start "trook" system beep sound
@@ -118,7 +121,15 @@ class SpeechManager(
                 isListening = false
                 unmuteStartBeep()
                 Log.e(TAG, "Error starting speech recognition: ${e.message}")
-                onError("Failed to start speech recognition: ${e.message}")
+                if (shouldContinueListening) {
+                    mainHandler.postDelayed({
+                        if (shouldContinueListening) {
+                            startListeningInternal()
+                        }
+                    }, 400L)
+                } else {
+                    onError("Failed to start speech recognition: ${e.message}")
+                }
             }
         }
     }
@@ -193,13 +204,21 @@ class SpeechManager(
                 isListening = false
                 unmuteStartBeep()
 
-                // If user hasn't explicitly stopped, and it was a timeout or no-match, keep listening smoothly
-                if (shouldContinueListening && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
+                // If user activated continuous toggle, keep running endlessly until user toggles off
+                if (shouldContinueListening && error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                    if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY || error == SpeechRecognizer.ERROR_CLIENT) {
+                        try {
+                            speechRecognizer?.destroy()
+                            speechRecognizer = null
+                        } catch (e: Exception) {
+                            Log.d(TAG, "Reset recognizer error: ${e.message}")
+                        }
+                    }
                     mainHandler.postDelayed({
                         if (shouldContinueListening) {
                             startListeningInternal()
                         }
-                    }, 250L)
+                    }, 300L)
                     return
                 }
 

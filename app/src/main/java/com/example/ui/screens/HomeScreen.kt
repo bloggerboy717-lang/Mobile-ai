@@ -10,6 +10,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -55,12 +56,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.AlicViewModel
+import com.example.R
 import com.example.data.AssistantState
 import com.example.data.ChatMessage
 import com.example.data.ConnectionStatus
@@ -127,12 +130,8 @@ fun HomeScreen(
             return
         }
 
-        if (assistantState == AssistantState.SPEAKING) {
-            viewModel.stopSpeaking()
-            return
-        }
-
-        if (assistantState == AssistantState.LISTENING) {
+        // Toggle: if running, click stops it; if idle, click starts continuous loop
+        if (assistantState != AssistantState.IDLE) {
             viewModel.onMicClicked()
             return
         }
@@ -180,7 +179,7 @@ fun HomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-        // Minimal Top Bar (Title, Connection dot, Quick Theme, Emergency SOS shortcut & Settings icon)
+        // Minimal Top Bar (Custom Logo, Title, Connection dot, Quick Theme, Emergency SOS shortcut & Settings icon)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -189,6 +188,15 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Image(
+                    painter = painterResource(id = R.drawable.app_logo),
+                    contentDescription = "ALIC AI Logo",
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .border(1.5.dp, themeColors.primaryAccent.copy(alpha = 0.7f), CircleShape)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "ALIC-AI",
                     fontSize = 20.sp,

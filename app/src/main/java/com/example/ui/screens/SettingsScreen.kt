@@ -28,6 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -215,7 +216,7 @@ fun SettingsScreen(
                     SettingCategoryCard(
                         section = SettingsSection.PERMISSIONS_CENTER,
                         themeColors = themeColors,
-                        onClick = { activeSection = SettingsSection.PERMISSIONS_CENTER }
+                        onClick = { onNavigateToPermissions() }
                     )
 
                     // 7. About ALIC-AI (Full guide, features & API Key instructions)
@@ -267,10 +268,10 @@ fun SettingsScreen(
                         )
                     }
                     SettingsSection.PERMISSIONS_CENTER -> {
-                        PermissionsScreen(
-                            onNavigateBack = { activeSection = null },
-                            themeColors = themeColors
-                        )
+                        LaunchedEffect(Unit) {
+                            onNavigateToPermissions()
+                            activeSection = null
+                        }
                     }
                     SettingsSection.ABOUT_ALIC -> {
                         com.example.ui.screens.settings.AboutAlicSubSetting(

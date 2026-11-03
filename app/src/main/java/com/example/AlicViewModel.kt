@@ -269,7 +269,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                 _assistantState.value = AssistantState.IDLE
                 if (_isContinuousMode.value && !userCancelledLoop) {
                     viewModelScope.launch {
-                        delay(450)
+                        delay(200)
                         if (_assistantState.value == AssistantState.IDLE && _isContinuousMode.value && !userCancelledLoop) {
                             _recognizedLiveText.value = ""
                             speechManager.startListening(_voiceSettings.value.language)
@@ -293,7 +293,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                 // Once assistant finishes speaking, automatically restart listening so user never has to press mic again
                 if (_isContinuousMode.value && !userCancelledLoop) {
                     viewModelScope.launch {
-                        delay(450)
+                        delay(200)
                         if (_assistantState.value == AssistantState.IDLE && _isContinuousMode.value && !userCancelledLoop) {
                             _recognizedLiveText.value = ""
                             speechManager.startListening(_voiceSettings.value.language)
@@ -339,18 +339,18 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                 _activeAudioRms.value = rms
             },
             onError = { err ->
-                _errorMessage.value = err
                 _assistantState.value = AssistantState.IDLE
 
-                // If in continuous mode and timed out or had no match, softly re-listen after pause
-                if (_isContinuousMode.value && !userCancelledLoop &&
-                    (err.contains("timeout", ignoreCase = true) || err.contains("No speech", ignoreCase = true))) {
+                // In continuous mode, seamlessly re-listen without displaying error toasts for normal pauses
+                if (_isContinuousMode.value && !userCancelledLoop) {
                     viewModelScope.launch {
-                        delay(900)
+                        delay(250)
                         if (_assistantState.value == AssistantState.IDLE && _isContinuousMode.value && !userCancelledLoop) {
                             speechManager.startListening(_voiceSettings.value.language)
                         }
                     }
+                } else {
+                    _errorMessage.value = err
                 }
             }
         )
@@ -365,6 +365,16 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
 
         if (apiKeyStorage.hasApiKey()) {
             testCurrentConnection()
+        }
+
+        // Automatic Incoming SMS Announcement: "जब मैसेज आए तो मैसेज पढ़कर मुझे बताना"
+        com.example.receiver.IncomingSmsReceiver.onSmsReceivedListener = { sender, message ->
+            val announcement = "नया मैसेज आया है $sender से: $message"
+            ttsManager.speak(announcement, flush = false)
+            _chatMessages.value = _chatMessages.value + ChatMessage(
+                sender = MessageSender.ALIC,
+                text = "📩 [Incoming SMS from $sender]:\n$message"
+            )
         }
     }
 
@@ -422,19 +432,14 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onMicClicked() {
         dismissError()
-        userCancelledLoop = false
         when (_assistantState.value) {
-            AssistantState.LISTENING -> {
-                userCancelledLoop = true
-                speechManager.stopListening()
-                _assistantState.value = AssistantState.IDLE
-            }
-            AssistantState.SPEAKING -> {
-                userCancelledLoop = true
-                stopSpeaking()
-            }
+            AssistantState.LISTENING,
+            AssistantState.SPEAKING,
             AssistantState.THINKING -> {
                 userCancelledLoop = true
+                stopSpeaking()
+                speechManager.stopListening()
+                speechManager.cancel()
                 _assistantState.value = AssistantState.IDLE
             }
             AssistantState.IDLE -> {

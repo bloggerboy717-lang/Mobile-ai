@@ -33,10 +33,9 @@ class GeminiApiService(
         const val DEFAULT_SYSTEM_PROMPT =
             "You are Alic AI, a calm, friendly, and highly capable agentic AI voice assistant developed by Rohit Raj. " +
             "Your answers will be converted directly into speech via native Text-to-Speech. " +
-            "Always be conversational, direct, and concise (typically 2-4 sentences unless detailed explanation is asked). " +
-            "Do NOT use markdown styling like asterisks, bullet points, hashes, or code blocks because they sound awkward when read aloud. " +
-            "Speak smoothly, naturally, and warmly. " +
-            "CRITICAL REQUIREMENT: Always reason, think, and respond strictly in ENGLISH. Never generate Hindi or Devanagari text."
+            "Always be conversational, direct, and concise (typically 1-3 sentences for spoken audio unless user asks for detailed explanation). " +
+            "Never use markdown formatting like asterisks, bullet points, hashes, or code blocks because they sound awkward when read aloud. " +
+            "Speak smoothly, naturally, and warmly in the user's selected language."
     }
 
     /**
@@ -173,7 +172,7 @@ class GeminiApiService(
 
                 put("generationConfig", JSONObject().apply {
                     put("temperature", 0.7)
-                    put("maxOutputTokens", 1000)
+                    put("maxOutputTokens", 180)
                 })
             }
 
@@ -274,20 +273,23 @@ class GeminiApiService(
                 })
                 put("contents", contentsArray)
 
+                val isAudioModel = modelId.contains("audio", ignoreCase = true) || modelId.contains("live", ignoreCase = true)
                 put("generationConfig", JSONObject().apply {
                     put("temperature", 0.7)
-                    put("maxOutputTokens", 1000)
-                    put("responseModalities", JSONArray().apply {
-                        put("TEXT")
-                        put("AUDIO")
-                    })
-                    put("speechConfig", JSONObject().apply {
-                        put("voiceConfig", JSONObject().apply {
-                            put("prebuiltVoiceConfig", JSONObject().apply {
-                                put("voiceName", voiceName)
+                    put("maxOutputTokens", 180)
+                    if (isAudioModel) {
+                        put("responseModalities", JSONArray().apply {
+                            put("TEXT")
+                            put("AUDIO")
+                        })
+                        put("speechConfig", JSONObject().apply {
+                            put("voiceConfig", JSONObject().apply {
+                                put("prebuiltVoiceConfig", JSONObject().apply {
+                                    put("voiceName", voiceName)
+                                })
                             })
                         })
-                    })
+                    }
                 })
             }
 
@@ -317,7 +319,7 @@ class GeminiApiService(
                                 }
                                 if (part.has("inlineData")) {
                                     val inline = part.getJSONObject("inlineData")
-                                    audioData = inline.optString("data", null)
+                                    audioData = if (inline.has("data")) inline.optString("data") else null
                                     mimeType = inline.optString("mimeType", "audio/wav")
                                 }
                             }
@@ -335,10 +337,10 @@ class GeminiApiService(
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Multimodal audio generation fallback to text", e)
+            Log.w(TAG, "Voice generation fallback to text", e)
         }
 
-        // Seamless fallback to clean text if direct audio output is unsupported on current model/key
+        // Direct fast fallback to clean text
         val textFallback = generateAssistantResponse(
             apiKey = apiKey,
             modelId = modelId,

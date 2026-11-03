@@ -34,21 +34,29 @@ class VoiceAssistantForegroundService : Service() {
             private set
 
         fun startService(context: Context) {
-            val intent = Intent(context, VoiceAssistantForegroundService::class.java).apply {
-                action = ACTION_START
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                val intent = Intent(context, VoiceAssistantForegroundService::class.java).apply {
+                    action = ACTION_START
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start service safely", e)
             }
         }
 
         fun stopService(context: Context) {
-            val intent = Intent(context, VoiceAssistantForegroundService::class.java).apply {
-                action = ACTION_STOP
+            try {
+                val intent = Intent(context, VoiceAssistantForegroundService::class.java).apply {
+                    action = ACTION_STOP
+                }
+                context.stopService(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to stop service safely", e)
             }
-            context.stopService(intent)
         }
     }
 
@@ -64,14 +72,23 @@ class VoiceAssistantForegroundService : Service() {
         }
 
         val notification = createNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error starting foreground with microphone type, falling back", e)
+            try {
+                startForeground(NOTIFICATION_ID, notification)
+            } catch (e2: Exception) {
+                Log.e(TAG, "Fallback startForeground failed", e2)
+            }
         }
         isRunning = true
         Log.i(TAG, "VoiceAssistantForegroundService started in foreground")

@@ -124,10 +124,10 @@ class TtsManager(
         val targetLocale = when (currentSettings.language) {
             com.example.data.VoiceLanguage.AUTO -> {
                 val hasDevanagari = cleanSpeech.any { it.code in 0x0900..0x097F }
-                if (hasDevanagari) Locale("hi", "IN") else Locale.US
+                if (hasDevanagari) Locale.forLanguageTag("hi-IN") else Locale.US
             }
             com.example.data.VoiceLanguage.BHOJPURI,
-            com.example.data.VoiceLanguage.HINDI -> Locale("hi", "IN")
+            com.example.data.VoiceLanguage.HINDI -> Locale.forLanguageTag("hi-IN")
             else -> Locale.forLanguageTag(currentSettings.language.localeTag)
         }
 
