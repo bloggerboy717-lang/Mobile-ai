@@ -64,6 +64,7 @@ import com.example.AlicViewModel
 import com.example.data.AssistantState
 import com.example.data.ChatMessage
 import com.example.data.ConnectionStatus
+import com.example.ui.components.HackerMatrixBackground
 import com.example.ui.components.OutlinedAnimatedButton
 import com.example.ui.components.PlanetVoiceOrb
 import com.example.ui.components.ThemeSelectionDialog
@@ -94,6 +95,19 @@ fun HomeScreen(
     val currentThemePreset by viewModel.currentThemePreset.collectAsState()
     val customHexColor by viewModel.customHexColor.collectAsState()
     var showThemeDialog by remember { mutableStateOf(false) }
+
+    // Hacker Live Coding Rain State
+    val isHackerCodeRainEnabled by viewModel.isHackerCodeRainEnabled.collectAsState()
+    val hackerCodeColorHex by viewModel.hackerCodeColorHex.collectAsState()
+    val lastSavedHackerFile by viewModel.lastSavedHackerFile.collectAsState()
+
+    val hackerMatrixColor = remember(hackerCodeColorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(hackerCodeColorHex))
+        } catch (e: Exception) {
+            Color(0xFF00FF41)
+        }
+    }
 
     var showPermissionRationale by remember { mutableStateOf(false) }
 
@@ -135,7 +149,7 @@ fun HomeScreen(
         }
     }
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(
@@ -147,10 +161,25 @@ fun HomeScreen(
                     )
                 )
             )
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
     ) {
+        // Hacker Matrix Live Coding Background (Always in Green by default, running on home screen)
+        if (isHackerCodeRainEnabled) {
+            HackerMatrixBackground(
+                matrixColor = hackerMatrixColor,
+                alpha = if (themeColors.isDark) 0.35f else 0.22f,
+                onCodeCycleCompleted = {
+                    viewModel.onCodeCycleCompleted(context)
+                }
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
         // Minimal Top Bar (Title, Connection dot, Quick Theme, Emergency SOS shortcut & Settings icon)
         Row(
             modifier = Modifier
@@ -530,6 +559,7 @@ fun HomeScreen(
         } else {
             Spacer(modifier = Modifier.height(8.dp))
         }
+    }
     }
 
     // Theme Selection Dialog

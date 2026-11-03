@@ -140,7 +140,7 @@ fun ApiKeySetupDialog(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Google AI Studio",
+                                text = "AI Studio Key",
                                 color = themeColors.primaryAccent,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium
@@ -170,7 +170,7 @@ fun ApiKeySetupDialog(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = "Alic AI uses the Google Gemini API for natural voice intelligence. You can configure your key now or later in Settings.",
+                    text = "ALIC-AI uses high-performance Gemini API models for natural voice intelligence. You can configure your key now or in About ALIC / Settings.",
                     color = themeColors.textSecondary,
                     fontSize = 13.sp,
                     lineHeight = 18.sp,

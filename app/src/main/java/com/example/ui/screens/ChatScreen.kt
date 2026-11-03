@@ -155,7 +155,7 @@ fun ChatScreen(
                             color = TextPrimary
                         )
                         Text(
-                            text = "Google Gemini Intelligence",
+                            text = "ALIC Neural Intelligence",
                             fontSize = 10.sp,
                             color = CyberSky
                         )
@@ -346,7 +346,7 @@ fun ChatScreen(
                     value = inputText,
                     onValueChange = { inputText = it },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("Ask ALIC-AI (Jarvis) or type a command...", color = themeColors.textMuted, fontSize = 13.sp) },
+                    placeholder = { Text("Ask ALIC-AI or type a question...", color = themeColors.textMuted, fontSize = 13.sp) },
                     maxLines = 3,
                     shape = RoundedCornerShape(20.dp),
                     colors = OutlinedTextFieldDefaults.colors(

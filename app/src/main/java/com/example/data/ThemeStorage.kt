@@ -75,4 +75,28 @@ class ThemeStorage(context: Context) {
         val cleaned = if (hex.startsWith("#")) hex else "#$hex"
         prefs.edit().putString(KEY_CUSTOM_HEX, cleaned.uppercase()).apply()
     }
+
+    fun isHackerCodeRainEnabled(): Boolean {
+        return prefs.getBoolean("hacker_code_rain_enabled", true)
+    }
+
+    fun setHackerCodeRainEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("hacker_code_rain_enabled", enabled).apply()
+    }
+
+    fun getHackerCodeColorHex(): String {
+        return prefs.getString("hacker_code_color", "#00FF41") ?: "#00FF41"
+    }
+
+    fun setHackerCodeColorHex(hex: String) {
+        prefs.edit().putString("hacker_code_color", hex).apply()
+    }
+
+    fun isAutoSaveDownloadsEnabled(): Boolean {
+        return prefs.getBoolean("hacker_code_auto_save_downloads", true)
+    }
+
+    fun setAutoSaveDownloadsEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("hacker_code_auto_save_downloads", enabled).apply()
+    }
 }

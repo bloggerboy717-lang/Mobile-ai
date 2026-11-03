@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.util.Log
 import android.os.Build
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
@@ -163,6 +164,50 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
         _themeColors.value = resolveThemeColors(ThemePreset.CUSTOM, hex)
     }
 
+    // Hacker Matrix Live Coding Background & Auto-Save
+    private val _isHackerCodeRainEnabled = MutableStateFlow(themeStorage.isHackerCodeRainEnabled())
+    val isHackerCodeRainEnabled: StateFlow<Boolean> = _isHackerCodeRainEnabled.asStateFlow()
+
+    private val _hackerCodeColorHex = MutableStateFlow(themeStorage.getHackerCodeColorHex())
+    val hackerCodeColorHex: StateFlow<String> = _hackerCodeColorHex.asStateFlow()
+
+    private val _isAutoSaveDownloadsEnabled = MutableStateFlow(themeStorage.isAutoSaveDownloadsEnabled())
+    val isAutoSaveDownloadsEnabled: StateFlow<Boolean> = _isAutoSaveDownloadsEnabled.asStateFlow()
+
+    private val _lastSavedHackerFile = MutableStateFlow<String?>(null)
+    val lastSavedHackerFile: StateFlow<String?> = _lastSavedHackerFile.asStateFlow()
+
+    fun setHackerCodeRainEnabled(enabled: Boolean) {
+        themeStorage.setHackerCodeRainEnabled(enabled)
+        _isHackerCodeRainEnabled.value = enabled
+    }
+
+    fun setHackerCodeColorHex(hex: String) {
+        val clean = if (hex.startsWith("#")) hex else "#$hex"
+        themeStorage.setHackerCodeColorHex(clean)
+        _hackerCodeColorHex.value = clean
+    }
+
+    fun setAutoSaveDownloadsEnabled(enabled: Boolean) {
+        themeStorage.setAutoSaveDownloadsEnabled(enabled)
+        _isAutoSaveDownloadsEnabled.value = enabled
+    }
+
+    fun saveHackerCodeToDownloads(context: Context): String? {
+        val script = com.example.util.HackerCodeDownloadHelper.generateHackerScriptSample()
+        val saved = com.example.util.HackerCodeDownloadHelper.saveCodeToDownloads(context, script)
+        if (saved != null) {
+            _lastSavedHackerFile.value = saved
+        }
+        return saved
+    }
+
+    fun onCodeCycleCompleted(context: Context) {
+        if (_isAutoSaveDownloadsEnabled.value) {
+            saveHackerCodeToDownloads(context)
+        }
+    }
+
     // SOS Emergency Alert System (Feature 15)
     val emergencyStorage = EmergencyStorage(application)
     lateinit var sosManager: EmergencySosManager
@@ -227,7 +272,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                         delay(450)
                         if (_assistantState.value == AssistantState.IDLE && _isContinuousMode.value && !userCancelledLoop) {
                             _recognizedLiveText.value = ""
-                            speechManager.startListening()
+                            speechManager.startListening(_voiceSettings.value.language)
                         }
                     }
                 }
@@ -251,7 +296,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                         delay(450)
                         if (_assistantState.value == AssistantState.IDLE && _isContinuousMode.value && !userCancelledLoop) {
                             _recognizedLiveText.value = ""
-                            speechManager.startListening()
+                            speechManager.startListening(_voiceSettings.value.language)
                         }
                     }
                 }
@@ -303,12 +348,20 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                     viewModelScope.launch {
                         delay(900)
                         if (_assistantState.value == AssistantState.IDLE && _isContinuousMode.value && !userCancelledLoop) {
-                            speechManager.startListening()
+                            speechManager.startListening(_voiceSettings.value.language)
                         }
                     }
                 }
             }
         )
+
+        if (_voiceSettings.value.backgroundListeningEnabled) {
+            try {
+                com.example.service.VoiceAssistantForegroundService.startService(application)
+            } catch (e: Exception) {
+                Log.w("AlicViewModel", "Could not start background service on init: ${e.message}")
+            }
+        }
 
         if (apiKeyStorage.hasApiKey()) {
             testCurrentConnection()
@@ -393,7 +446,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                 userCancelledLoop = false
                 stopSpeaking()
                 _recognizedLiveText.value = ""
-                speechManager.startListening()
+                speechManager.startListening(_voiceSettings.value.language)
             }
         }
     }
@@ -508,9 +561,10 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
         val memoryContext = if (profile.isConfigured) {
             "STUDENT MEMORY: Student Name is '${profile.name}', Class/Course is '${profile.gradeOrCourse}', Goal is '${profile.goal}', Weakest Subject is '${profile.weakSubject}'. Address student warmly by name and personalize all explanations, doubt solutions, study planner, and quiz questions."
         } else {
-            "STUDENT PROFILE STATUS: First time conversation. Warmly ask the student for their Name, Class/Course, Goal, and Weakest Subject so you can serve as their personal Jarvis."
+            "STUDENT PROFILE STATUS: First time conversation. Warmly ask the student for their Name, Class/Course, Goal, and Weakest Subject so you can serve as their personal intelligent assistant."
         }
-        val enrichedInstructions = "${_currentPersona.value.systemPromptInstructions}\n\n$memoryContext"
+        val languageDirective = "CRITICAL LANGUAGE INSTRUCTION: ${_voiceSettings.value.language.systemPromptDirective}"
+        val enrichedInstructions = "${_currentPersona.value.systemPromptInstructions}\n\n$languageDirective\n\n$memoryContext"
 
         val voiceName = when (_currentPersona.value.id) {
             com.example.persona.PersonaId.AOEDE -> "Aoede"
@@ -760,6 +814,29 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
     fun updateVoiceSettings(settings: VoiceSettings) {
         ttsManager.updateSettings(settings)
         _voiceSettings.value = settings
+    }
+
+    fun selectVoiceLanguage(language: com.example.data.VoiceLanguage) {
+        val updated = _voiceSettings.value.copy(language = language)
+        updateVoiceSettings(updated)
+    }
+
+    fun toggleBackgroundListening(enabled: Boolean) {
+        val updated = _voiceSettings.value.copy(backgroundListeningEnabled = enabled)
+        updateVoiceSettings(updated)
+        if (enabled) {
+            try {
+                com.example.service.VoiceAssistantForegroundService.startService(getApplication())
+            } catch (e: Exception) {
+                Log.e("AlicViewModel", "Failed to start foreground service: ${e.message}")
+            }
+        } else {
+            try {
+                com.example.service.VoiceAssistantForegroundService.stopService(getApplication())
+            } catch (e: Exception) {
+                Log.e("AlicViewModel", "Failed to stop foreground service: ${e.message}")
+            }
+        }
     }
 
     fun testVoice() {

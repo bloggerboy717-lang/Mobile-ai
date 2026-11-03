@@ -1,12 +1,23 @@
 package com.example.ui.screens.settings
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,7 +28,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.VolumeMute
 import androidx.compose.material.icons.filled.VolumeUp
@@ -42,13 +57,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.AlicViewModel
+import com.example.data.VoiceLanguage
 import com.example.data.VoiceSettings
 import com.example.persona.ALL_PERSONAS
+import com.example.persona.PersonaGender
 import com.example.ui.components.OutlinedAnimatedButton
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.ThemeColors
 import com.example.ui.theme.WarningAmber
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun VoiceAudioSubSetting(
     viewModel: AlicViewModel,
@@ -58,6 +76,17 @@ fun VoiceAudioSubSetting(
 ) {
     val context = LocalContext.current
     val currentPersona by viewModel.currentPersona.collectAsState()
+
+    val notificationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.toggleBackgroundListening(true)
+            Toast.makeText(context, "Background listening enabled with notification", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Notification permission needed for background assistant", Toast.LENGTH_LONG).show()
+        }
+    }
 
     Column(
         modifier = modifier
@@ -100,7 +129,7 @@ fun VoiceAudioSubSetting(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Real conversational Gemini voice models with natural human intonation, avoiding mechanical phone robotic TTS.",
+                        text = "Conversational models with natural human intonation. Supports male and female personas in multiple Indian & international languages.",
                         fontSize = 11.sp,
                         color = themeColors.textPrimary,
                         lineHeight = 15.sp
@@ -109,7 +138,7 @@ fun VoiceAudioSubSetting(
             }
         }
 
-        // Voice Models List
+        // 1. Language Selection (भोजपुरी, हिंदी, इंग्लिश, मराठी, तेलुगु, etc.)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -117,15 +146,114 @@ fun VoiceAudioSubSetting(
             border = BorderStroke(1.dp, themeColors.cardBorder)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
-                Text(
-                    text = "Gemini Prebuilt Voice Models",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = themeColors.textPrimary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Language,
+                        contentDescription = null,
+                        tint = themeColors.primaryAccent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Conversation Language",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = themeColors.textPrimary
+                    )
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Select your preferred official voice persona:",
+                    text = "Select the language the AI should speak and reply in:",
+                    fontSize = 12.sp,
+                    color = themeColors.textSecondary
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    VoiceLanguage.values().forEach { lang ->
+                        val isSelected = voiceSettings.language == lang
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    viewModel.selectVoiceLanguage(lang)
+                                    Toast.makeText(
+                                        context,
+                                        "Language set to ${lang.displayName} (${lang.nativeName})",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                .testTag("lang_chip_${lang.code}"),
+                            color = if (isSelected) themeColors.primaryAccent else themeColors.cardElevated,
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) themeColors.primaryAccent else themeColors.cardBorder
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                }
+                                Column {
+                                    Text(
+                                        text = lang.displayName,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else themeColors.textPrimary
+                                    )
+                                    Text(
+                                        text = lang.nativeName,
+                                        fontSize = 10.sp,
+                                        color = if (isSelected) Color.White.copy(alpha = 0.85f) else themeColors.textSecondary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Voice Models List (Male & Female)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            color = themeColors.cardBackground,
+            border = BorderStroke(1.dp, themeColors.cardBorder)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Headset,
+                        contentDescription = null,
+                        tint = themeColors.secondaryAccent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Gemini Prebuilt Voice Models",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = themeColors.textPrimary
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Select your preferred voice persona (Male & Female models):",
                     fontSize = 12.sp,
                     color = themeColors.textSecondary
                 )
@@ -183,8 +311,8 @@ fun VoiceAudioSubSetting(
                                             .clip(RoundedCornerShape(4.dp))
                                             .background(
                                                 when (persona.gender) {
-                                                    com.example.persona.PersonaGender.MALE -> Color(0xFF1E88E5).copy(alpha = 0.2f)
-                                                    com.example.persona.PersonaGender.FEMALE -> Color(0xFFE91E63).copy(alpha = 0.2f)
+                                                    PersonaGender.MALE -> Color(0xFF1E88E5).copy(alpha = 0.2f)
+                                                    PersonaGender.FEMALE -> Color(0xFFE91E63).copy(alpha = 0.2f)
                                                     else -> themeColors.primaryAccent.copy(alpha = 0.15f)
                                                 }
                                             )
@@ -192,14 +320,14 @@ fun VoiceAudioSubSetting(
                                     ) {
                                         Text(
                                             text = when (persona.gender) {
-                                                com.example.persona.PersonaGender.MALE -> "MALE VOICE"
-                                                com.example.persona.PersonaGender.FEMALE -> "FEMALE VOICE"
+                                                PersonaGender.MALE -> "MALE VOICE"
+                                                PersonaGender.FEMALE -> "FEMALE VOICE"
                                                 else -> "NEUTRAL"
                                             },
                                             fontSize = 9.sp,
                                             color = when (persona.gender) {
-                                                com.example.persona.PersonaGender.MALE -> Color(0xFF64B5F6)
-                                                com.example.persona.PersonaGender.FEMALE -> Color(0xFFF48FB1)
+                                                PersonaGender.MALE -> Color(0xFF64B5F6)
+                                                PersonaGender.FEMALE -> Color(0xFFF48FB1)
                                                 else -> themeColors.primaryAccent
                                             },
                                             fontWeight = FontWeight.Bold
@@ -233,7 +361,117 @@ fun VoiceAudioSubSetting(
             }
         }
 
-        // Voice Controls (Mute & Pitch only - Speech Rate removed as requested)
+        // 3. Background Working & Listening
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            color = themeColors.cardBackground,
+            border = BorderStroke(1.dp, themeColors.cardBorder)
+        ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Security,
+                        contentDescription = null,
+                        tint = themeColors.primaryAccent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Background Working & Listening",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = themeColors.textPrimary
+                    )
+                }
+
+                Text(
+                    text = "Keeps ALIC-AI continuously active and listening even when the app is minimized, running in the background, or while using other apps.",
+                    fontSize = 12.sp,
+                    color = themeColors.textSecondary,
+                    lineHeight = 16.sp
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(themeColors.cardElevated)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Background Listening Mode",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = themeColors.textPrimary
+                        )
+                        Text(
+                            text = if (voiceSettings.backgroundListeningEnabled) "Active in background" else "Disabled",
+                            fontSize = 11.sp,
+                            color = if (voiceSettings.backgroundListeningEnabled) SuccessGreen else themeColors.textMuted
+                        )
+                    }
+
+                    Switch(
+                        checked = voiceSettings.backgroundListeningEnabled,
+                        onCheckedChange = { isEnabled ->
+                            if (isEnabled) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                } else {
+                                    viewModel.toggleBackgroundListening(true)
+                                    Toast.makeText(context, "Background listening enabled", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                viewModel.toggleBackgroundListening(false)
+                                Toast.makeText(context, "Background listening disabled", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = themeColors.primaryAccent,
+                            checkedTrackColor = themeColors.cardBorder
+                        ),
+                        modifier = Modifier.testTag("bg_listening_switch")
+                    )
+                }
+
+                // Battery Optimization Exemption button if user needs background persistence
+                OutlinedAnimatedButton(
+                    text = "Grant Battery Optimization Exemption",
+                    icon = Icons.Default.Security,
+                    onClick = {
+                        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                            powerManager?.isIgnoringBatteryOptimizations(context.packageName) == false
+                        ) {
+                            try {
+                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                                context.startActivity(fallbackIntent)
+                            }
+                        } else {
+                            Toast.makeText(context, "Battery optimizations already exempt", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("grant_battery_opt_button")
+                )
+            }
+        }
+
+        // 4. Audio Preferences (Mute & Pitch only)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),

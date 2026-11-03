@@ -1,10 +1,12 @@
 package com.example.ui.screens.settings
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -41,5 +43,15 @@ enum class SettingsSection(
         title = "AI & Model Settings",
         icon = Icons.Default.Psychology,
         testTag = "setting_item_ai_system"
+    ),
+    PERMISSIONS_CENTER(
+        title = "Permissions Center",
+        icon = Icons.Default.Security,
+        testTag = "setting_item_permissions_center"
+    ),
+    ABOUT_ALIC(
+        title = "About ALIC-AI",
+        icon = Icons.Default.Info,
+        testTag = "setting_item_about_alic"
     )
 }

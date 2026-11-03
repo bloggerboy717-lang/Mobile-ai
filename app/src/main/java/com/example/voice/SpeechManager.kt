@@ -2,6 +2,7 @@ package com.example.voice
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -9,6 +10,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import com.example.data.VoiceLanguage
 import java.util.Locale
 
 class SpeechManager(
@@ -34,18 +36,44 @@ class SpeechManager(
     private val mainHandler = Handler(Looper.getMainLooper())
     var isListening = false
         private set
+    var shouldContinueListening = true
+    private var currentLanguage: VoiceLanguage = VoiceLanguage.AUTO
 
     fun isRecognitionAvailable(): Boolean {
         return SpeechRecognizer.isRecognitionAvailable(context)
     }
 
-    fun startListening() {
+    private fun muteStartBeep() {
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioManager?.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_MUTE, 0)
+            audioManager?.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_MUTE, 0)
+        } catch (e: Exception) {
+            Log.d(TAG, "Mute stream attempt: ${e.message}")
+        }
+    }
+
+    private fun unmuteStartBeep() {
+        mainHandler.postDelayed({
+            try {
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                audioManager?.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_UNMUTE, 0)
+                audioManager?.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_UNMUTE, 0)
+            } catch (e: Exception) {
+                Log.d(TAG, "Unmute stream attempt: ${e.message}")
+            }
+        }, 450L)
+    }
+
+    fun startListening(language: VoiceLanguage = currentLanguage) {
+        currentLanguage = language
+        shouldContinueListening = true
+        startListeningInternal()
+    }
+
+    private fun startListeningInternal() {
         mainHandler.post {
             try {
-                if (isListening) {
-                    stopListening()
-                }
-
                 if (!SpeechRecognizer.isRecognitionAvailable(context)) {
                     onError("Speech recognition is not available on this device.")
                     return@post
@@ -57,22 +85,38 @@ class SpeechManager(
                     }
                 }
 
+                val primaryLocaleTag = when (currentLanguage) {
+                    VoiceLanguage.AUTO -> "hi-IN"
+                    VoiceLanguage.BHOJPURI -> "hi-IN"
+                    else -> currentLanguage.localeTag
+                }
+
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    // Support Hindi and English naturally
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN,en-IN,en-US")
-                    putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("hi-IN", "en-IN", "en-US"))
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, primaryLocaleTag)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "$primaryLocaleTag,hi-IN,en-IN,en-US")
+                    putExtra(
+                        "android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES",
+                        arrayOf("hi-IN", "en-IN", "en-US", "bho-IN", "mr-IN", "te-IN", "ta-IN", "bn-IN", "gu-IN", "kn-IN", "pa-IN")
+                    )
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                     putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+                    // Keep listening longer without cutting the user off
+                    putExtra("android.speech.extras.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 3000L)
+                    putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 2500L)
+                    putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 2000L)
                 }
+
+                // Silence the start "trook" system beep sound
+                muteStartBeep()
 
                 isListening = true
                 onStateChanged(SpeechState.Ready)
                 speechRecognizer?.startListening(intent)
             } catch (e: Exception) {
                 isListening = false
+                unmuteStartBeep()
                 Log.e(TAG, "Error starting speech recognition: ${e.message}")
                 onError("Failed to start speech recognition: ${e.message}")
             }
@@ -80,6 +124,7 @@ class SpeechManager(
     }
 
     fun stopListening() {
+        shouldContinueListening = false
         mainHandler.post {
             if (isListening) {
                 isListening = false
@@ -94,6 +139,7 @@ class SpeechManager(
     }
 
     fun cancel() {
+        shouldContinueListening = false
         mainHandler.post {
             isListening = false
             try {
@@ -106,6 +152,7 @@ class SpeechManager(
     }
 
     fun destroy() {
+        shouldContinueListening = false
         mainHandler.post {
             isListening = false
             try {
@@ -121,10 +168,12 @@ class SpeechManager(
         return object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 isListening = true
+                unmuteStartBeep()
                 onStateChanged(SpeechState.Listening)
             }
 
             override fun onBeginningOfSpeech() {
+                isListening = true
                 onStateChanged(SpeechState.Listening)
             }
 
@@ -142,10 +191,22 @@ class SpeechManager(
 
             override fun onError(error: Int) {
                 isListening = false
+                unmuteStartBeep()
+
+                // If user hasn't explicitly stopped, and it was a timeout or no-match, keep listening smoothly
+                if (shouldContinueListening && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
+                    mainHandler.postDelayed({
+                        if (shouldContinueListening) {
+                            startListeningInternal()
+                        }
+                    }, 250L)
+                    return
+                }
+
                 onStateChanged(SpeechState.Idle)
                 val message = when (error) {
                     SpeechRecognizer.ERROR_AUDIO -> "Audio recording error. Please verify your microphone."
-                    SpeechRecognizer.ERROR_CLIENT -> "Client speech recognition error."
+                    SpeechRecognizer.ERROR_CLIENT -> "Speech recognition client error."
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is required for voice input."
                     SpeechRecognizer.ERROR_NETWORK -> "Network error during speech recognition."
                     SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timed out during speech recognition."
@@ -156,18 +217,26 @@ class SpeechManager(
                     else -> "Speech recognition error ($error)."
                 }
                 Log.w(TAG, "SpeechRecognizer error: $error ($message)")
-                onError(message)
+                if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                    onError(message)
+                }
             }
 
             override fun onResults(results: Bundle?) {
                 isListening = false
+                unmuteStartBeep()
                 onStateChanged(SpeechState.Idle)
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val recognizedText = matches?.firstOrNull()?.trim()
                 if (!recognizedText.isNullOrEmpty()) {
                     onFinalResult(recognizedText)
-                } else {
-                    onError("Could not understand speech.")
+                } else if (shouldContinueListening) {
+                    // Smoothly restart if empty result
+                    mainHandler.postDelayed({
+                        if (shouldContinueListening) {
+                            startListeningInternal()
+                        }
+                    }, 200L)
                 }
             }
 

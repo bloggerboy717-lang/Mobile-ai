@@ -52,12 +52,12 @@ val AVAILABLE_GEMINI_MODELS = listOf(
     GeminiModelOption(
         id = "gemini-2.5-flash",
         displayName = "Gemini 2.5 Flash (Recommended)",
-        description = "Google's ultra-fast model with low latency, ideal for voice conversations."
+        description = "Ultra-fast neural model with low latency, ideal for voice conversations."
     ),
     GeminiModelOption(
         id = "gemini-2.5-pro",
         displayName = "Gemini 2.5 Pro",
-        description = "Google's most capable model for complex reasoning and multimodal tasks."
+        description = "Most capable neural model for complex reasoning and multimodal tasks."
     ),
     GeminiModelOption(
         id = "gemini-2.0-flash",
@@ -83,12 +83,100 @@ enum class VoicePersona {
     KORE
 }
 
+enum class VoiceLanguage(
+    val code: String,
+    val displayName: String,
+    val nativeName: String,
+    val localeTag: String,
+    val systemPromptDirective: String
+) {
+    AUTO(
+        code = "auto",
+        displayName = "Auto Detect",
+        nativeName = "स्वचालित",
+        localeTag = "en-IN",
+        systemPromptDirective = "Detect the user's language automatically and reply fluently in that exact same language (Bhojpuri, Hindi, Marathi, Telugu, Tamil, Bengali, or English)."
+    ),
+    BHOJPURI(
+        code = "bho",
+        displayName = "Bhojpuri",
+        nativeName = "भोजपुरी",
+        localeTag = "hi-IN",
+        systemPromptDirective = "You MUST reply strictly in authentic, sweet, and conversational BHOJPURI (भोजपुरी) using Devanagari script (e.g. 'हम रउवा मदद करे खातिर तइयार बानी। बताईं का परेशानी बा?'). Never switch to English unless code is requested."
+    ),
+    HINDI(
+        code = "hi",
+        displayName = "Hindi",
+        nativeName = "हिंदी",
+        localeTag = "hi-IN",
+        systemPromptDirective = "You MUST reply strictly in natural, polite, and fluent HINDI (हिंदी) using clean Devanagari script. Never switch to English unless technical code is requested."
+    ),
+    ENGLISH(
+        code = "en",
+        displayName = "English",
+        nativeName = "English",
+        localeTag = "en-US",
+        systemPromptDirective = "You MUST reply strictly in fluent, natural, conversational ENGLISH."
+    ),
+    MARATHI(
+        code = "mr",
+        displayName = "Marathi",
+        nativeName = "मराठी",
+        localeTag = "mr-IN",
+        systemPromptDirective = "You MUST reply strictly in natural, fluent MARATHI (मराठी) using Devanagari script."
+    ),
+    TELUGU(
+        code = "te",
+        displayName = "Telugu",
+        nativeName = "తెలుగు",
+        localeTag = "te-IN",
+        systemPromptDirective = "You MUST reply strictly in natural, fluent TELUGU (తెలుగు) using Telugu script."
+    ),
+    TAMIL(
+        code = "ta",
+        displayName = "Tamil",
+        nativeName = "தமிழ்",
+        localeTag = "ta-IN",
+        systemPromptDirective = "You MUST reply strictly in natural, fluent TAMIL (தமிழ்) using Tamil script."
+    ),
+    BENGALI(
+        code = "bn",
+        displayName = "Bengali",
+        nativeName = "বাংলা",
+        localeTag = "bn-IN",
+        systemPromptDirective = "You MUST reply strictly in natural, fluent BENGALI (বাংলা) using Bengali script."
+    ),
+    GUJARATI(
+        code = "gu",
+        displayName = "Gujarati",
+        nativeName = "ગુજરાતી",
+        localeTag = "gu-IN",
+        systemPromptDirective = "You MUST reply strictly in natural, fluent GUJARATI (ગુજરાતી) using Gujarati script."
+    ),
+    KANNADA(
+        code = "kn",
+        displayName = "Kannada",
+        nativeName = "ಕನ್ನಡ",
+        localeTag = "kn-IN",
+        systemPromptDirective = "You MUST reply strictly in natural, fluent KANNADA (ಕನ್ನಡ) using Kannada script."
+    ),
+    PUNJABI(
+        code = "pa",
+        displayName = "Punjabi",
+        nativeName = "ਪੰਜਾਬੀ",
+        localeTag = "pa-IN",
+        systemPromptDirective = "You MUST reply strictly in natural, fluent PUNJABI (ਪੰਜਾਬੀ) using Gurmukhi script."
+    )
+}
+
 data class VoiceSettings(
     val persona: VoicePersona = VoicePersona.NEUTRAL,
+    val language: VoiceLanguage = VoiceLanguage.AUTO,
     val pitch: Float = 1.0f,
     val speechRate: Float = 1.0f,
     val muteSpokenReplies: Boolean = false,
-    val selectedVoiceName: String? = null
+    val selectedVoiceName: String? = null,
+    val backgroundListeningEnabled: Boolean = false
 )
 
 data class GeminiVoiceResponse(

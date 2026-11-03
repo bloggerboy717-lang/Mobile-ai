@@ -99,7 +99,7 @@ class AgentActionEngine(private val context: Context) {
                 val destination = extractDestination(prompt)
                 AgentAction(
                     type = ActionType.NAVIGATE_MAPS,
-                    title = "Open Google Maps",
+                    title = "Open Maps",
                     description = if (destination.isNotBlank()) "Navigate to $destination" else "Open Maps",
                     params = mapOf("destination" to destination)
                 )

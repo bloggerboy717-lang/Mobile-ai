@@ -210,6 +210,20 @@ fun SettingsScreen(
                         themeColors = themeColors,
                         onClick = { activeSection = SettingsSection.AI_SYSTEM }
                     )
+
+                    // 6. Unified Permissions Center (Working permissions)
+                    SettingCategoryCard(
+                        section = SettingsSection.PERMISSIONS_CENTER,
+                        themeColors = themeColors,
+                        onClick = { activeSection = SettingsSection.PERMISSIONS_CENTER }
+                    )
+
+                    // 7. About ALIC-AI (Full guide, features & API Key instructions)
+                    SettingCategoryCard(
+                        section = SettingsSection.ABOUT_ALIC,
+                        themeColors = themeColors,
+                        onClick = { activeSection = SettingsSection.ABOUT_ALIC }
+                    )
                 }
             } else {
                 // ACTIVE SUB-SETTING VIEW
@@ -250,6 +264,19 @@ fun SettingsScreen(
                             selectedModel = selectedModel,
                             onNavigateToPermissions = onNavigateToPermissions,
                             themeColors = themeColors
+                        )
+                    }
+                    SettingsSection.PERMISSIONS_CENTER -> {
+                        PermissionsScreen(
+                            onNavigateBack = { activeSection = null },
+                            themeColors = themeColors
+                        )
+                    }
+                    SettingsSection.ABOUT_ALIC -> {
+                        com.example.ui.screens.settings.AboutAlicSubSetting(
+                            viewModel = viewModel,
+                            themeColors = themeColors,
+                            onOpenApiKeyDialog = { viewModel.openSetupDialog() }
                         )
                     }
                 }

@@ -23,10 +23,12 @@ class TtsManager(
         private const val TAG = "TtsManager"
         private const val PREFS_NAME = "alic_tts_prefs"
         private const val KEY_PERSONA = "tts_persona"
+        private const val KEY_LANGUAGE = "tts_language"
         private const val KEY_PITCH = "tts_pitch"
         private const val KEY_RATE = "tts_rate"
         private const val KEY_MUTE = "tts_mute"
         private const val KEY_VOICE_NAME = "tts_voice_name"
+        private const val KEY_BG_LISTENING = "tts_bg_listening"
         private const val UTTERANCE_ID = "ALIC_VOICE_UTTERANCE"
     }
 
@@ -118,15 +120,21 @@ class TtsManager(
 
         if (cleanSpeech.isBlank()) return
 
-        // Detect if text contains Hindi / Devanagari script
-        val isHindi = cleanSpeech.any { it.code in 0x0900..0x097F }
-        runCatching {
-            if (isHindi) {
-                tts?.language = Locale("hi", "IN")
-            } else {
-                tts?.language = Locale.US
+        // Configure language locale matching user's selected language
+        val targetLocale = when (currentSettings.language) {
+            com.example.data.VoiceLanguage.AUTO -> {
+                val hasDevanagari = cleanSpeech.any { it.code in 0x0900..0x097F }
+                if (hasDevanagari) Locale("hi", "IN") else Locale.US
             }
-            applyVoiceSettings(currentSettings, isHindi)
+            com.example.data.VoiceLanguage.BHOJPURI,
+            com.example.data.VoiceLanguage.HINDI -> Locale("hi", "IN")
+            else -> Locale.forLanguageTag(currentSettings.language.localeTag)
+        }
+
+        runCatching {
+            tts?.language = targetLocale
+            val langPrefix = targetLocale.language
+            applyVoiceSettings(currentSettings, isHindi = (langPrefix == "hi"))
         }
 
         val queueMode = if (flush) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
@@ -180,15 +188,55 @@ class TtsManager(
         if (tempMute) {
             applyVoiceSettings(currentSettings.copy(muteSpokenReplies = false))
         }
-        val textToSpeak = sampleText ?: when (currentSettings.persona) {
-            VoicePersona.CHARON -> "Hello! I am Charon, Google's deep male voice model. Confident, calm, and ready to assist you."
-            VoicePersona.PUCK -> "Hey! I am Puck, Google's upbeat and energetic male voice model. Let's solve your doubts and have fun!"
-            VoicePersona.FENRIR -> "Hello! I am Fenrir, Google's warm and grounded male voice model. Always here to guide you smoothly."
-            VoicePersona.AOEDE -> "Hello! I am Aoede, Google's bright and clear voice model. Ready to explore ideas with you."
-            VoicePersona.KORE -> "Hello! I am Kore, Google's soothing and gentle voice model. How can I assist you today?"
-            VoicePersona.MALE -> "Hello! I am your male AI assistant. Systems are online and ready."
-            VoicePersona.FEMALE -> "Hello! I am your female AI assistant. How can I help you today?"
-            else -> "Hello! I am ALIC-AI, your smart personal assistant. Ready to help you learn, solve problems, and achieve your goals."
+        val textToSpeak = sampleText ?: when (currentSettings.language) {
+            com.example.data.VoiceLanguage.BHOJPURI -> {
+                when (currentSettings.persona) {
+                    VoicePersona.CHARON -> "प्रणाम! हम Charon हईं, ALIC के डीप मेल आवाज। रउवा पढ़ाई आ काम में मदद खातिर तइयार बानी।"
+                    VoicePersona.PUCK -> "अरे वाह! हम Puck हईं! रउवा सब सवाल के चुटकी में हल कर देब!"
+                    VoicePersona.FENRIR -> "प्रणाम! हम Fenrir हईं, ALIC के वार्म मेल आवाज। बताईं का सेवा करीं?"
+                    VoicePersona.AOEDE -> "प्रणाम! हम Aoede हईं, ALIC के ब्राइट आवाज। का हाल-चाल बा?"
+                    else -> "प्रणाम! हम ALIC-AI हईं, रउवा स्मार्ट पर्सनल असिस्टेंट। बताईं का परेशानी बा?"
+                }
+            }
+            com.example.data.VoiceLanguage.HINDI -> {
+                when (currentSettings.persona) {
+                    VoicePersona.CHARON -> "नमस्ते! मैं Charon हूँ, ALIC का डीप मेल वॉइस मॉडल। मैं आपकी सहायता के लिए तैयार हूँ।"
+                    VoicePersona.PUCK -> "अरे वाह! मैं Puck हूँ! फुल एनर्जी के साथ आपके सभी सवालों के जवाब देंगे!"
+                    VoicePersona.FENRIR -> "नमस्ते! मैं Fenrir हूँ, ALIC का वार्म और स्पष्ट मेल वॉइस मॉडल।"
+                    VoicePersona.AOEDE -> "नमस्ते! मैं Aoede हूँ, ALIC का ब्राइट और एंगेजिंग वॉइस मॉडल।"
+                    else -> "नमस्ते! मैं ALIC-AI हूँ, आपका स्मार्ट पर्सनल असिस्टेंट। मैं आपकी क्या मदद कर सकता हूँ?"
+                }
+            }
+            com.example.data.VoiceLanguage.MARATHI -> {
+                "नमस्कार! मी ALIC-AI आहे, तुमचा स्मार्ट पर्सनल असिस्टंट. विचारा तुमचे प्रश्न, मी नक्की मदत करेन."
+            }
+            com.example.data.VoiceLanguage.TELUGU -> {
+                "నమస్కారం! నేను ALIC-AI, మీ స్మార్ట్ పర్సనల్ అసిస్టెంట్. నేను మీకు సహాయం చేయడానికి సిద్ధంగా ఉన్నాను."
+            }
+            com.example.data.VoiceLanguage.TAMIL -> {
+                "வணக்கம்! நான் ALIC-AI, உங்கள் ஸ்மார்ட் தனிப்பட்ட உதவியாளர்."
+            }
+            com.example.data.VoiceLanguage.BENGALI -> {
+                "নমস্কার! আমি ALIC-AI, আপনার স্মার্ট পার্সোনাল অ্যাসিস্ট্যান্ট।"
+            }
+            com.example.data.VoiceLanguage.GUJARATI -> {
+                "નમસ્તે! હું ALIC-AI છું, તમારો સ્માર્ટ પર્સનલ આસિસ્ટન્ટ."
+            }
+            com.example.data.VoiceLanguage.PUNJABI -> {
+                "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ! ਮੈਂ ALIC-AI ਹਾਂ, ਤੁਹਾਡਾ ਸਮਾਰਟ ਪਰਸਨਲ ਅਸਿਸਟੈਂਟ।"
+            }
+            else -> {
+                when (currentSettings.persona) {
+                    VoicePersona.CHARON -> "Hello! I am Charon, ALIC's deep male voice model. Confident, calm, and ready to assist you."
+                    VoicePersona.PUCK -> "Hey! I am Puck, ALIC's upbeat and energetic male voice model. Let's solve your doubts and have fun!"
+                    VoicePersona.FENRIR -> "Hello! I am Fenrir, ALIC's warm and grounded male voice model. Always here to guide you smoothly."
+                    VoicePersona.AOEDE -> "Hello! I am Aoede, ALIC's bright and clear voice model. Ready to explore ideas with you."
+                    VoicePersona.KORE -> "Hello! I am Kore, ALIC's soothing and gentle voice model. How can I assist you today?"
+                    VoicePersona.MALE -> "Hello! I am your male AI assistant. Systems are online and ready."
+                    VoicePersona.FEMALE -> "Hello! I am your female AI assistant. How can I help you today?"
+                    else -> "Hello! I am ALIC-AI, your smart personal assistant. Ready to help you learn, solve problems, and achieve your goals."
+                }
+            }
         }
         speak(textToSpeak, flush = true)
     }
@@ -359,27 +407,34 @@ class TtsManager(
     private fun loadSettings(): VoiceSettings {
         val personaName = prefs.getString(KEY_PERSONA, VoicePersona.NEUTRAL.name)
         val persona = runCatching { VoicePersona.valueOf(personaName ?: "NEUTRAL") }.getOrDefault(VoicePersona.NEUTRAL)
+        val languageName = prefs.getString(KEY_LANGUAGE, com.example.data.VoiceLanguage.AUTO.name)
+        val language = runCatching { com.example.data.VoiceLanguage.valueOf(languageName ?: "AUTO") }.getOrDefault(com.example.data.VoiceLanguage.AUTO)
         val pitch = prefs.getFloat(KEY_PITCH, 1.0f)
         val rate = prefs.getFloat(KEY_RATE, 1.0f)
         val mute = prefs.getBoolean(KEY_MUTE, false)
         val voiceName = prefs.getString(KEY_VOICE_NAME, null)
+        val bgListening = prefs.getBoolean(KEY_BG_LISTENING, false)
 
         return VoiceSettings(
             persona = persona,
+            language = language,
             pitch = pitch,
             speechRate = rate,
             muteSpokenReplies = mute,
-            selectedVoiceName = voiceName
+            selectedVoiceName = voiceName,
+            backgroundListeningEnabled = bgListening
         )
     }
 
     private fun saveSettings(settings: VoiceSettings) {
         prefs.edit()
             .putString(KEY_PERSONA, settings.persona.name)
+            .putString(KEY_LANGUAGE, settings.language.name)
             .putFloat(KEY_PITCH, settings.pitch)
             .putFloat(KEY_RATE, settings.speechRate)
             .putBoolean(KEY_MUTE, settings.muteSpokenReplies)
             .putString(KEY_VOICE_NAME, settings.selectedVoiceName)
+            .putBoolean(KEY_BG_LISTENING, settings.backgroundListeningEnabled)
             .apply()
     }
 

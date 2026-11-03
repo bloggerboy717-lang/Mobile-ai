@@ -45,7 +45,7 @@ import kotlin.math.sin
  * surrounded by dotted circular planetary orbits ("बिंदु-बिंदु गोल सर्कल").
  *
  * Fully reactive to AssistantState, audio RMS levels,
- * and dynamically restyled by the active AppTheme (Sunset, Red, Light, Dark, Emerald, Custom).
+ * and dynamically restyled by the active AppTheme.
  */
 @Composable
 fun PlanetVoiceOrb(
@@ -154,8 +154,8 @@ fun PlanetVoiceOrb(
                     scaleY = reactiveScale
                 }
         ) {
-            val center = Offset(size.toPx() / 2f, size.toPx() / 2f)
-            val planetRadius = size.toPx() * 0.28f
+            val center = Offset(this.size.width / 2f, this.size.height / 2f)
+            val planetRadius = this.size.width * 0.28f
 
             // 1. Deep Atmospheric Outer Halo
             val haloRadius = planetRadius * 1.6f
@@ -217,7 +217,7 @@ fun PlanetVoiceOrb(
                 )
             }
 
-            // Also draw a very subtle faint dashed line behind outer orbit
+            // Subtle faint dashed line behind outer orbit
             drawCircle(
                 color = outerOrbitColor.copy(alpha = 0.15f),
                 radius = orbitRadiusOuter,
