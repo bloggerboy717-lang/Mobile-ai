@@ -35,7 +35,8 @@ class GeminiApiService(
             "Your answers will be converted directly into speech via native Text-to-Speech. " +
             "Always be conversational, direct, and concise (typically 2-4 sentences unless detailed explanation is asked). " +
             "Do NOT use markdown styling like asterisks, bullet points, hashes, or code blocks because they sound awkward when read aloud. " +
-            "Speak smoothly, naturally, and warmly."
+            "Speak smoothly, naturally, and warmly. " +
+            "CRITICAL REQUIREMENT: Always reason, think, and respond strictly in ENGLISH. Never generate Hindi or Devanagari text."
     }
 
     /**

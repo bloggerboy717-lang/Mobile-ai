@@ -181,12 +181,14 @@ class TtsManager(
             applyVoiceSettings(currentSettings.copy(muteSpokenReplies = false))
         }
         val textToSpeak = sampleText ?: when (currentSettings.persona) {
-            VoicePersona.AOEDE -> "नमस्ते! मैं Aoede (आरोन) हूँ, Google का नेचुरल वॉइस मॉडल। मेरी आवाज़ बिना किसी रोबोटिक टोन के बिल्कुल साफ़ और इंसानी अंदाज़ में है।"
-            VoicePersona.CHARON -> "नमस्ते! मैं Charon (कैरन) हूँ, Google का डीप और शांत वॉइस मॉडल। मैं आपकी पढ़ाई और सभी सवालों में मदद के लिए तैयार हूँ।"
-            VoicePersona.PUCK -> "अरे वाह! मैं Puck हूँ! फुल एनर्जी और नए अंदाज़ के साथ आपके हर डाउट को सॉल्व करेंगे!"
-            VoicePersona.FENRIR -> "नमस्ते! मैं Fenrir हूँ। Google का बैलेंस्ड, वार्म और स्पष्ट वॉइस मॉडल। पढ़ाई और कोडिंग में हम साथ काम करेंगे।"
-            VoicePersona.KORE -> "नमस्ते! मैं Kore हूँ। शांत, कोमल और स्पष्ट आवाज़ में आपकी सहायता के लिए सदैव उपलब्ध हूँ।"
-            else -> "नमस्ते! मैं ALIC-AI हूँ, आपका स्मार्ट स्टूडेंट पर्सनल असिस्टेंट। मेरी आवाज़ अब पूरी तरह नेचुरल और बिना किसी रोबोटिक टोन के है।"
+            VoicePersona.CHARON -> "Hello! I am Charon, Google's deep male voice model. Confident, calm, and ready to assist you."
+            VoicePersona.PUCK -> "Hey! I am Puck, Google's upbeat and energetic male voice model. Let's solve your doubts and have fun!"
+            VoicePersona.FENRIR -> "Hello! I am Fenrir, Google's warm and grounded male voice model. Always here to guide you smoothly."
+            VoicePersona.AOEDE -> "Hello! I am Aoede, Google's bright and clear voice model. Ready to explore ideas with you."
+            VoicePersona.KORE -> "Hello! I am Kore, Google's soothing and gentle voice model. How can I assist you today?"
+            VoicePersona.MALE -> "Hello! I am your male AI assistant. Systems are online and ready."
+            VoicePersona.FEMALE -> "Hello! I am your female AI assistant. How can I help you today?"
+            else -> "Hello! I am ALIC-AI, your smart personal assistant. Ready to help you learn, solve problems, and achieve your goals."
         }
         speak(textToSpeak, flush = true)
     }
@@ -224,16 +226,34 @@ class TtsManager(
         return voices.any { isFemaleVoice(it) } && voices.any { isMaleVoice(it) }
     }
 
-    private fun isFemaleVoice(voice: Voice): Boolean {
+    fun isFemaleVoice(voice: Voice): Boolean {
         val name = voice.name.lowercase(Locale.ROOT)
-        return name.contains("female") || name.contains("fem") || name.contains("-f-") ||
-                voice.features?.any { it.contains("gender:female", ignoreCase = true) } == true
+        val features = voice.features?.map { it.lowercase(Locale.ROOT) } ?: emptyList()
+        if (features.any { it.contains("gender:female") || it.contains("female") }) return true
+
+        val femalePatterns = listOf(
+            "female", "fem", "-f-", "#female", "_female", "woman", "girl",
+            "sfg#female", "iog", "iof", "iob",
+            "ena", "enb",
+            "hia", "hic"
+        )
+        return femalePatterns.any { name.contains(it) }
     }
 
-    private fun isMaleVoice(voice: Voice): Boolean {
+    fun isMaleVoice(voice: Voice): Boolean {
         val name = voice.name.lowercase(Locale.ROOT)
-        return name.contains("male") || name.contains("-m-") ||
-                voice.features?.any { it.contains("gender:male", ignoreCase = true) } == true
+        val features = voice.features?.map { it.lowercase(Locale.ROOT) } ?: emptyList()
+        if (features.any { it.contains("gender:male") || it.contains("male") }) return true
+
+        val malePatterns = listOf(
+            "male", "-m-", "#male", "_male", "boy", "man", "guy", "masculine",
+            "iom", "iol", "tpd", // Google US English male voices
+            "enc", "end", "ene", // Google Indian English male voices
+            "en-gb-x-rjs", "en-gb-x-gda", // Google UK male voices
+            "en-au-x-afh", // Google AU male voices
+            "hid", "hie" // Google Hindi male voices
+        )
+        return malePatterns.any { name.contains(it) }
     }
 
     private fun selectBestNaturalVoice(gender: PersonaGender, lang: String = "") {
@@ -250,6 +270,7 @@ class TtsManager(
                 ?: pool.firstOrNull()
             PersonaGender.MALE -> pool.firstOrNull { isMaleVoice(it) && isNeuralOrHighQualityVoice(it) }
                 ?: pool.firstOrNull { isMaleVoice(it) }
+                ?: pool.firstOrNull { !isFemaleVoice(it) }
                 ?: pool.firstOrNull()
             PersonaGender.NEUTRAL -> pool.firstOrNull { isNeuralOrHighQualityVoice(it) }
                 ?: pool.firstOrNull()
@@ -263,7 +284,18 @@ class TtsManager(
     fun applyVoiceSettings(settings: VoiceSettings, isHindi: Boolean = false) {
         if (!isInitialized) return
 
-        tts?.setPitch(settings.pitch.coerceIn(0.6f, 1.6f))
+        // Set distinctive pitch matching male vs female frequency characteristics
+        val effectivePitch = when (settings.persona) {
+            VoicePersona.CHARON -> 0.78f // Deep masculine tone
+            VoicePersona.FENRIR -> 0.82f // Warm grounded male tone
+            VoicePersona.PUCK -> 0.86f   // Playful energetic male tone
+            VoicePersona.MALE -> 0.80f   // Distinctive male tone
+            VoicePersona.AOEDE -> 1.04f  // Bright female tone
+            VoicePersona.KORE -> 1.02f   // Gentle female tone
+            VoicePersona.FEMALE -> 1.04f // Female tone
+            else -> settings.pitch.coerceIn(0.7f, 1.4f)
+        }
+        tts?.setPitch(effectivePitch)
         tts?.setSpeechRate(settings.speechRate.coerceIn(0.6f, 1.6f))
 
         val allVoices = getAvailableVoices()
@@ -297,16 +329,19 @@ class TtsManager(
             VoicePersona.CHARON, VoicePersona.MALE -> {
                 pool.firstOrNull { isMaleVoice(it) && isNeuralOrHighQualityVoice(it) }
                     ?: pool.firstOrNull { isMaleVoice(it) }
+                    ?: pool.firstOrNull { !isFemaleVoice(it) }
                     ?: pool.firstOrNull()
             }
             VoicePersona.PUCK -> {
                 pool.firstOrNull { isMaleVoice(it) && isNeuralOrHighQualityVoice(it) }
-                    ?: pool.firstOrNull { isNeuralOrHighQualityVoice(it) }
+                    ?: pool.firstOrNull { isMaleVoice(it) }
+                    ?: pool.firstOrNull { !isFemaleVoice(it) }
                     ?: pool.firstOrNull()
             }
             VoicePersona.FENRIR -> {
                 pool.firstOrNull { isMaleVoice(it) && isNeuralOrHighQualityVoice(it) }
                     ?: pool.firstOrNull { isMaleVoice(it) }
+                    ?: pool.firstOrNull { !isFemaleVoice(it) }
                     ?: pool.firstOrNull()
             }
             VoicePersona.KORE -> {

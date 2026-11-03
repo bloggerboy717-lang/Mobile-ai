@@ -79,18 +79,18 @@ class EmergencySosManager(
 
         // Default or simulated GPS coordinate link
         val locationLink = "https://maps.google.com/?q=28.6139,77.2090"
-        val sosMessage = "🚨 $userName ने SOS भेजा है। वे मुसीबत में हो सकते हैं। लोकेशन: $locationLink, समय: $currentTime। कृपया तुरंत संपर्क करें।"
+        val sosMessage = "🚨 SOS ALERT: $userName sent an emergency signal and may need urgent help. Location: $locationLink, Time: $currentTime. Please check immediately."
 
         val newLogs = mutableListOf<String>()
-        newLogs.add("🚨 SOS आपातकालीन मोड सक्रिय हुआ: $currentTime")
+        newLogs.add("🚨 SOS emergency mode activated: $currentTime")
 
         // 1. Dispatch SMS / Messages to all 3 emergency contacts
         contacts.forEachIndexed { index, contact ->
             if (contact.phoneNumber.isNotBlank()) {
                 sendSmsToContact(contact.phoneNumber, sosMessage)
-                newLogs.add("✉️ कॉन्टैक्ट #${index + 1} (${contact.name} - ${contact.phoneNumber}) को अलर्ट मैसेज भेजा गया।")
+                newLogs.add("✉️ Alert message dispatched to contact #${index + 1} (${contact.name} - ${contact.phoneNumber})")
             } else {
-                newLogs.add("⚠️ कॉन्टैक्ट #${index + 1} का नंबर सेटिंग्स में दर्ज नहीं है।")
+                newLogs.add("⚠️ Contact #${index + 1} phone number not configured in settings")
             }
         }
 
@@ -104,7 +104,7 @@ class EmergencySosManager(
         )
 
         // 2. Reassure user in calm, caring voice
-        val reassurance = "मैंने आपके तीनों कॉन्टैक्ट्स को सूचना दे दी है। मैं आपके साथ हूँ।"
+        val reassurance = "I have notified your emergency contacts and dispatched your live location. I am right here with you."
         onSpeakReassurance(reassurance)
 
         // 3. Initiate first call to primary emergency contact
@@ -124,7 +124,7 @@ class EmergencySosManager(
                 val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
                 val updateTime = timeFormat.format(Date())
                 val updatedLocation = "https://maps.google.com/?q=28.6139,77.2090"
-                val updateMessage = "📍 SOS लाइव लोकेशन अपडेट ($updateTime): $userName अभी यहाँ हैं: $updatedLocation"
+                val updateMessage = "📍 SOS Live Location Update ($updateTime): $userName is at: $updatedLocation"
 
                 contacts.forEach { contact ->
                     if (contact.phoneNumber.isNotBlank()) {
@@ -133,7 +133,7 @@ class EmergencySosManager(
                 }
 
                 val currentLogs = _sosState.value.logs.toMutableList()
-                currentLogs.add("📍 1 मिनट का लाइव लोकेशन अपडेट भेजा गया ($updateTime)")
+                currentLogs.add("📍 1-minute live location update dispatched ($updateTime)")
                 _sosState.value = _sosState.value.copy(
                     locationLink = updatedLocation,
                     logs = currentLogs
@@ -186,9 +186,9 @@ class EmergencySosManager(
         locationUpdateJob?.cancel()
         val contacts = emergencyStorage.getContacts()
         val profile = profileStorage.getProfile()
-        val userName = if (profile.name.isNotBlank()) profile.name else "उपयोगकर्ता"
+        val userName = if (profile.name.isNotBlank()) profile.name else "User"
 
-        val cancelMessage = "✅ सब ठीक है। $userName अब पूरी तरह सुरक्षित हैं। SOS अलर्ट रद्द कर दिया गया है।"
+        val cancelMessage = "✅ All is well. $userName is now safe. The emergency SOS alert has been cancelled."
 
         contacts.forEach { contact ->
             if (contact.phoneNumber.isNotBlank()) {
@@ -197,7 +197,7 @@ class EmergencySosManager(
         }
 
         val logs = _sosState.value.logs.toMutableList()
-        logs.add("✅ 'मैं सुरक्षित हूँ' प्राप्त हुआ। SOS रद्द किया गया और सभी कॉन्टैक्ट्स को सूचित कर दिया गया।")
+        logs.add("✅ 'I am Safe' confirmed. SOS cancelled and all contacts notified.")
 
         _sosState.value = _sosState.value.copy(
             isActive = false,
@@ -205,6 +205,6 @@ class EmergencySosManager(
             logs = logs
         )
 
-        onSpeakReassurance("खुशी हुई जानकर कि आप सुरक्षित हैं। मैंने आपके तीनों कॉन्टैक्ट्स को 'सब ठीक है' का संदेश भेज दिया है।")
+        onSpeakReassurance("Glad to know you are safe. I have informed all your contacts that you are safe.")
     }
 }

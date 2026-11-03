@@ -276,7 +276,7 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = "🚨 SOS आपातकालीन मोड सक्रिय",
+                            text = "🚨 SOS Emergency Mode Active",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = ErrorRed
@@ -285,7 +285,7 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
-                            text = "मैंने आपके तीनों कॉन्टैक्ट्स को सूचना दे दी है। मैं आपके साथ हूँ।",
+                            text = "Alert dispatched to all 3 emergency contacts with live tracking. Help is on the way.",
                             fontSize = 13.sp,
                             color = Color.White,
                             textAlign = TextAlign.Center
@@ -316,7 +316,7 @@ fun HomeScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "लाइव लोकेशन लिंक हर 1 मिनट में अपडेट हो रहा है",
+                                text = "Live location link updates automatically every 60 seconds",
                                 fontSize = 11.sp,
                                 color = Color(0xFFFFB4A2),
                                 fontWeight = FontWeight.Medium
@@ -331,7 +331,7 @@ fun HomeScreen(
                         ) {
                             // Dial 112 button
                             OutlinedAnimatedButton(
-                                text = "112 कॉल करें",
+                                text = "Call 112",
                                 icon = Icons.Default.Call,
                                 onClick = { viewModel.dialPolice112() },
                                 containerColor = ErrorRed.copy(alpha = 0.3f),
@@ -341,7 +341,7 @@ fun HomeScreen(
 
                             // Cancel SOS button
                             OutlinedAnimatedButton(
-                                text = "मैं सुरक्षित हूँ",
+                                text = "I am Safe",
                                 icon = Icons.Default.Check,
                                 onClick = { viewModel.cancelSos() },
                                 containerColor = SuccessGreen.copy(alpha = 0.3f),
@@ -411,13 +411,13 @@ fun HomeScreen(
                             text = when (assistantState) {
                                 AssistantState.IDLE -> {
                                     if (studentProfile.name.isNotBlank())
-                                        "नमस्ते ${studentProfile.name}! बोलने के लिए टैप करें"
+                                        "Hi ${studentProfile.name}! Tap orb to speak"
                                     else
-                                        "बोलने के लिए प्लैनेट दबाएँ (Tap to Speak)"
+                                        "Tap orb to speak"
                                 }
-                                AssistantState.LISTENING -> "सुन रहा हूँ... बोलिए!"
-                                AssistantState.THINKING -> "ALIC-AI सोच रहा है..."
-                                AssistantState.SPEAKING -> "उत्तर बोल रहा हूँ... (रोकने के लिए दबाएँ)"
+                                AssistantState.LISTENING -> "Listening... Speak now"
+                                AssistantState.THINKING -> "ALIC-AI is thinking..."
+                                AssistantState.SPEAKING -> "Speaking... (tap to stop)"
                             },
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,

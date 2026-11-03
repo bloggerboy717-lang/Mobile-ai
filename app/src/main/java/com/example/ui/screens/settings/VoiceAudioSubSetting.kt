@@ -178,12 +178,33 @@ fun VoiceAudioSubSetting(
                                         color = themeColors.textPrimary
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "(${persona.gender.name.lowercase()})",
-                                        fontSize = 10.sp,
-                                        color = themeColors.primaryAccent,
-                                        fontWeight = FontWeight.Medium
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(
+                                                when (persona.gender) {
+                                                    com.example.persona.PersonaGender.MALE -> Color(0xFF1E88E5).copy(alpha = 0.2f)
+                                                    com.example.persona.PersonaGender.FEMALE -> Color(0xFFE91E63).copy(alpha = 0.2f)
+                                                    else -> themeColors.primaryAccent.copy(alpha = 0.15f)
+                                                }
+                                            )
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = when (persona.gender) {
+                                                com.example.persona.PersonaGender.MALE -> "MALE VOICE"
+                                                com.example.persona.PersonaGender.FEMALE -> "FEMALE VOICE"
+                                                else -> "NEUTRAL"
+                                            },
+                                            fontSize = 9.sp,
+                                            color = when (persona.gender) {
+                                                com.example.persona.PersonaGender.MALE -> Color(0xFF64B5F6)
+                                                com.example.persona.PersonaGender.FEMALE -> Color(0xFFF48FB1)
+                                                else -> themeColors.primaryAccent
+                                            },
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                                 Text(
                                     text = persona.subtitle,
