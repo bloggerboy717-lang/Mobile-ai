@@ -11,7 +11,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [34])
 class ExampleRobolectricTest {
 
   @Test
@@ -119,15 +119,15 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify sub-settings sections exist and have localized titles`() {
+  fun `verify sub-settings sections exist and have English titles`() {
     val sections = com.example.ui.screens.settings.SettingsSection.values()
     assertEquals(5, sections.size)
-    val hindiTitles = sections.map { it.hindiTitle }
-    assertTrue(hindiTitles.contains("ओआरबी और थीम सेटिंग"))
-    assertTrue(hindiTitles.contains("स्टूडेंट सेटिंग"))
-    assertTrue(hindiTitles.contains("वॉइस और ऑडियो सेटिंग"))
-    assertTrue(hindiTitles.contains("इमरजेंसी व SOS सेटिंग"))
-    assertTrue(hindiTitles.contains("AI मॉडल व सिस्टम सेटिंग"))
+    val titles = sections.map { it.title }
+    assertTrue(titles.contains("ORB & Theme Settings"))
+    assertTrue(titles.contains("Student Profile"))
+    assertTrue(titles.contains("Voice Models"))
+    assertTrue(titles.contains("Emergency SOS"))
+    assertTrue(titles.contains("AI & Model Settings"))
   }
 }
 

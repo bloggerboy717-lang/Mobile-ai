@@ -772,6 +772,7 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        geminiAudioPlayer.stop()
         ttsManager.shutdown()
         speechManager.destroy()
     }

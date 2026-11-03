@@ -21,7 +21,7 @@ class GeminiAudioPlayer(
     }
 
     private var mediaPlayer: MediaPlayer? = null
-    var isPlaying: Boolean = false
+    var isCurrentlyPlaying: Boolean = false
         private set
 
     /**
@@ -59,18 +59,18 @@ class GeminiAudioPlayer(
                 setDataSource(tempFile.absolutePath)
                 setOnPreparedListener { mp ->
                     mp.start()
-                    isPlaying = true
+                    isCurrentlyPlaying = true
                     onPlayingStateChanged(true)
                 }
                 setOnCompletionListener {
-                    isPlaying = false
+                    isCurrentlyPlaying = false
                     onPlayingStateChanged(false)
                     onCompleted?.invoke()
                     cleanup()
                 }
                 setOnErrorListener { _, what, extra ->
                     Log.e(TAG, "MediaPlayer error: what=$what, extra=$extra")
-                    isPlaying = false
+                    isCurrentlyPlaying = false
                     onPlayingStateChanged(false)
                     cleanup()
                     true
@@ -80,7 +80,7 @@ class GeminiAudioPlayer(
             return true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to play Gemini audio", e)
-            isPlaying = false
+            isCurrentlyPlaying = false
             onPlayingStateChanged(false)
             cleanup()
             return false
@@ -96,7 +96,7 @@ class GeminiAudioPlayer(
         } catch (e: Exception) {
             Log.w(TAG, "Error stopping media player", e)
         } finally {
-            isPlaying = false
+            isCurrentlyPlaying = false
             onPlayingStateChanged(false)
         }
     }
