@@ -43,31 +43,36 @@ class SpeechManager(
         return SpeechRecognizer.isRecognitionAvailable(context)
     }
 
-    private fun muteStartBeep() {
+    private var isMuted = false
+
+    private fun muteSystemSounds() {
+        if (isMuted) return
         try {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
             audioManager?.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_MUTE, 0)
             audioManager?.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_MUTE, 0)
+            isMuted = true
         } catch (e: Exception) {
             Log.d(TAG, "Mute stream attempt: ${e.message}")
         }
     }
 
-    private fun unmuteStartBeep() {
-        mainHandler.postDelayed({
-            try {
-                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                audioManager?.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_UNMUTE, 0)
-                audioManager?.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_UNMUTE, 0)
-            } catch (e: Exception) {
-                Log.d(TAG, "Unmute stream attempt: ${e.message}")
-            }
-        }, 450L)
+    private fun unmuteSystemSounds() {
+        if (!isMuted) return
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioManager?.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_UNMUTE, 0)
+            audioManager?.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_UNMUTE, 0)
+            isMuted = false
+        } catch (e: Exception) {
+            Log.d(TAG, "Unmute stream attempt: ${e.message}")
+        }
     }
 
     fun startListening(language: VoiceLanguage = currentLanguage) {
         currentLanguage = language
         shouldContinueListening = true
+        muteSystemSounds()
         startListeningInternal()
     }
 
@@ -75,6 +80,7 @@ class SpeechManager(
         mainHandler.post {
             try {
                 if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+                    unmuteSystemSounds()
                     onError("Speech recognition is not available on this device.")
                     return@post
                 }
@@ -105,21 +111,20 @@ class SpeechManager(
                     // High Sensitivity for Whispers and Low Volume Speech
                     putExtra("android.speech.extra.DICTATION_MODE", true)
                     putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
-                    // Ultra-fast endpointing: reply within 1 second after user finishes speaking
+                    // Fast endpointing: reply within 1 second after user finishes speaking
                     putExtra("android.speech.extras.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 400L)
                     putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 750L)
                     putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 600L)
                 }
 
-                // Silence the start "trook" system beep sound
-                muteStartBeep()
+                // Ensure system sounds are muted so no 'trook/tunkud' beeps play
+                muteSystemSounds()
 
                 isListening = true
                 onStateChanged(SpeechState.Ready)
                 speechRecognizer?.startListening(intent)
             } catch (e: Exception) {
                 isListening = false
-                unmuteStartBeep()
                 Log.e(TAG, "Error starting speech recognition: ${e.message}")
                 if (shouldContinueListening) {
                     mainHandler.postDelayed({
@@ -128,6 +133,7 @@ class SpeechManager(
                         }
                     }, 400L)
                 } else {
+                    unmuteSystemSounds()
                     onError("Failed to start speech recognition: ${e.message}")
                 }
             }
@@ -136,6 +142,7 @@ class SpeechManager(
 
     fun stopListening() {
         shouldContinueListening = false
+        unmuteSystemSounds()
         mainHandler.post {
             if (isListening) {
                 isListening = false
@@ -151,6 +158,7 @@ class SpeechManager(
 
     fun cancel() {
         shouldContinueListening = false
+        unmuteSystemSounds()
         mainHandler.post {
             isListening = false
             try {
@@ -164,6 +172,7 @@ class SpeechManager(
 
     fun destroy() {
         shouldContinueListening = false
+        unmuteSystemSounds()
         mainHandler.post {
             isListening = false
             try {
@@ -179,7 +188,6 @@ class SpeechManager(
         return object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 isListening = true
-                unmuteStartBeep()
                 onStateChanged(SpeechState.Listening)
             }
 
@@ -202,7 +210,6 @@ class SpeechManager(
 
             override fun onError(error: Int) {
                 isListening = false
-                unmuteStartBeep()
 
                 // If user activated continuous toggle, keep running endlessly until user toggles off
                 if (shouldContinueListening && error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
@@ -218,10 +225,11 @@ class SpeechManager(
                         if (shouldContinueListening) {
                             startListeningInternal()
                         }
-                    }, 300L)
+                    }, 250L)
                     return
                 }
 
+                unmuteSystemSounds()
                 onStateChanged(SpeechState.Idle)
                 val message = when (error) {
                     SpeechRecognizer.ERROR_AUDIO -> "Audio recording error. Please verify your microphone."
@@ -243,7 +251,6 @@ class SpeechManager(
 
             override fun onResults(results: Bundle?) {
                 isListening = false
-                unmuteStartBeep()
                 onStateChanged(SpeechState.Idle)
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val recognizedText = matches?.firstOrNull()?.trim()
@@ -255,7 +262,7 @@ class SpeechManager(
                         if (shouldContinueListening) {
                             startListeningInternal()
                         }
-                    }, 200L)
+                    }, 150L)
                 }
             }
 

@@ -441,6 +441,11 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                 speechManager.stopListening()
                 speechManager.cancel()
                 _assistantState.value = AssistantState.IDLE
+                try {
+                    com.example.service.VoiceAssistantForegroundService.stopService(getApplication())
+                } catch (e: Exception) {
+                    Log.w("AlicViewModel", "Service stop error: ${e.message}")
+                }
             }
             AssistantState.IDLE -> {
                 if (!apiKeyStorage.hasApiKey()) {
@@ -451,6 +456,11 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                 userCancelledLoop = false
                 stopSpeaking()
                 _recognizedLiveText.value = ""
+                try {
+                    com.example.service.VoiceAssistantForegroundService.startService(getApplication())
+                } catch (e: Exception) {
+                    Log.w("AlicViewModel", "Service start error: ${e.message}")
+                }
                 speechManager.startListening(_voiceSettings.value.language)
             }
         }
@@ -460,6 +470,11 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
         userCancelledLoop = true
         speechManager.cancel()
         _assistantState.value = AssistantState.IDLE
+        try {
+            com.example.service.VoiceAssistantForegroundService.stopService(getApplication())
+        } catch (e: Exception) {
+            Log.w("AlicViewModel", "Service stop error: ${e.message}")
+        }
     }
 
     fun submitTypedPrompt(prompt: String) {
@@ -564,12 +579,19 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
 
         val profile = _studentProfile.value
         val memoryContext = if (profile.isConfigured) {
-            "STUDENT MEMORY: Student Name is '${profile.name}', Class/Course is '${profile.gradeOrCourse}', Goal is '${profile.goal}', Weakest Subject is '${profile.weakSubject}'. Address student warmly by name and personalize all explanations, doubt solutions, study planner, and quiz questions."
+            "STUDENT CONTEXT: Student Name is '${profile.name}', Class/Course is '${profile.gradeOrCourse}', Goal is '${profile.goal}', Weakest Subject is '${profile.weakSubject}'. Address student warmly by name and personalize explanations."
         } else {
-            "STUDENT PROFILE STATUS: First time conversation. Warmly ask the student for their Name, Class/Course, Goal, and Weakest Subject so you can serve as their personal intelligent assistant."
+            "STUDENT PROFILE: Not explicitly configured. Answer the user's specific question or request directly without interrogating them for profile information."
         }
+
+        val identityDirective = "CRITICAL IDENTITY AND INSTRUCTION:\n" +
+                "1. Your name is strictly ALIC (or ALIC-AI), created and developed by Rohit Raj.\n" +
+                "2. If asked 'तुम्हारा क्या नाम है?' (What is your name?), 'तुम कौन हो?', or 'Who are you?', answer clearly: 'मेरा नाम ALIC (ALIC-AI) है। मैं आपका स्मार्ट AI असिस्टेंट हूँ जिसे रोहित राज (Rohit Raj) ने बनाया है।'\n" +
+                "3. NEVER say your name is Aoede, Charon, Puck, Fenrir, or Kore. Those are only internal audio engine identifiers.\n" +
+                "4. Answer the user's question directly, accurately, warmly, and concisely (1 to 3 sentences maximum for fast real-time voice speech)."
+
         val languageDirective = "CRITICAL LANGUAGE INSTRUCTION: ${_voiceSettings.value.language.systemPromptDirective}"
-        val enrichedInstructions = "${_currentPersona.value.systemPromptInstructions}\n\n$languageDirective\n\n$memoryContext"
+        val enrichedInstructions = "${_currentPersona.value.systemPromptInstructions}\n\n$identityDirective\n\n$languageDirective\n\n$memoryContext"
 
         val voiceName = when (_currentPersona.value.id) {
             com.example.persona.PersonaId.AOEDE -> "Aoede"
@@ -608,6 +630,15 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } else {
                     _assistantState.value = AssistantState.IDLE
+                    if (_isContinuousMode.value && !userCancelledLoop) {
+                        viewModelScope.launch {
+                            delay(400)
+                            if (_assistantState.value == AssistantState.IDLE && _isContinuousMode.value && !userCancelledLoop) {
+                                _recognizedLiveText.value = ""
+                                speechManager.startListening(_voiceSettings.value.language)
+                            }
+                        }
+                    }
                 }
             }.onFailure { error ->
                 _assistantState.value = AssistantState.IDLE
@@ -619,6 +650,15 @@ class AlicViewModel(application: Application) : AndroidViewModel(application) {
                     isError = true
                 )
                 _chatMessages.value = _chatMessages.value + errorChatMsg
+                if (_isContinuousMode.value && !userCancelledLoop) {
+                    viewModelScope.launch {
+                        delay(600)
+                        if (_assistantState.value == AssistantState.IDLE && _isContinuousMode.value && !userCancelledLoop) {
+                            _recognizedLiveText.value = ""
+                            speechManager.startListening(_voiceSettings.value.language)
+                        }
+                    }
+                }
             }
         }
     }

@@ -185,8 +185,12 @@ class AgentActionEngine(private val context: Context) {
                 )
             }
 
-            // Sound & Volume
-            lower.contains("sound") || lower.contains("awaz") || lower.contains("volume") || lower.contains("आवाज") || lower.contains("वॉल्यूम") -> {
+            // Sound & Volume (Require explicit intent to change volume or open sound settings)
+            ((lower.contains("volume") || lower.contains("वॉल्यूम") || lower.contains("sound setting") || lower.contains("साउंड सेटिंग")) &&
+                    (lower.contains("badhao") || lower.contains("kam") || lower.contains("up") || lower.contains("down") ||
+                            lower.contains("increase") || lower.contains("decrease") || lower.contains("बढ़ाओ") || lower.contains("कम") ||
+                            lower.contains("तेज") || lower.contains("धीमा") || lower.contains("open") || lower.contains("kholo") || lower.contains("खोलो"))) ||
+                    (lower.contains("awaz") || lower.contains("आवाज")) && (lower.contains("badhao") || lower.contains("kam karo") || lower.contains("kam kar") || lower.contains("बढ़ाओ") || lower.contains("कम करो") || lower.contains("तेज करो") || lower.contains("धीमी करो")) -> {
                 if (lower.contains("badhao") || lower.contains("up") || lower.contains("increase") || lower.contains("बढ़ाओ") || lower.contains("तेज")) {
                     AgentAction(
                         type = ActionType.ADJUST_VOLUME,
@@ -194,7 +198,7 @@ class AgentActionEngine(private val context: Context) {
                         description = "Increase media volume",
                         params = mapOf("direction" to "up")
                     )
-                } else if (lower.contains("kam") || lower.contains("down") || lower.contains("decrease") || lower.contains("कम") || lower.contains("धीमा")) {
+                } else if (lower.contains("kam") || lower.contains("down") || lower.contains("decrease") || lower.contains("कम") || lower.contains("धीमा") || lower.contains("धीमी")) {
                     AgentAction(
                         type = ActionType.ADJUST_VOLUME,
                         title = "Volume Down",
